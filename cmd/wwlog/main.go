@@ -3,9 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"wanwanlog/internal/cli"
+	"wanwanlog/internal/logparser"
 	"wanwanlog/internal/source"
 	"wanwanlog/internal/version"
 )
@@ -36,9 +36,16 @@ func main() {
 	}
 	defer reader.Close()
 
-	if _, err := io.Copy(os.Stdout, reader); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to read source: %v\n", err)
+	parser := logparser.NewJSONLinesParser()
+
+	records, err := parser.Parse(reader)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to parser logs: %v\n", err)
 		os.Exit(1)
+	}
+
+	for _, record := range records {
+		fmt.Printf("[%s] %s: %s\n", record.Level, record.Service, record.Message)
 	}
 }
 
