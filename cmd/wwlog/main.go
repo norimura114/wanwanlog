@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"io"
 	"os"
 	"wanwanlog/internal/cli"
+	"wanwanlog/internal/source"
 	"wanwanlog/internal/version"
 )
 
@@ -25,10 +28,17 @@ func main() {
 		return
 	}
 
-	fmt.Printf("file: %s\n", config.FilePath)
+	src := source.NewLocalFileSource(config.FilePath)
+	reader, err := src.Open(context.Background())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to open source: %v\n", err)
+		os.Exit(1)
+	}
+	defer reader.Close()
 
-	if config.Query != "" {
-		fmt.Printf("query: %s\n", config.Query)
+	if _, err := io.Copy(os.Stdout, reader); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to read source: %v\n", err)
+		os.Exit(1)
 	}
 }
 
