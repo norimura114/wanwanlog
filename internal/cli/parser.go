@@ -14,6 +14,8 @@ func ParseArgs(args []string, output io.Writer) (Config, error) {
 
 	fs.StringVar(&config.FilePath, "file", "", "Path to a JSON Lines log file")
 	fs.StringVar(&config.Query, "query", "", "Search query")
+	fs.BoolVar(&config.JsonFormatter, "json", false, "Output as json")
+	fs.BoolVar(&config.Pretty, "pretty", true, "Pretty format")
 	fs.BoolVar(&config.ShowVersion, "version", false, "Show version")
 	fs.BoolVar(&config.ShowHelp, "help", false, "Show help")
 

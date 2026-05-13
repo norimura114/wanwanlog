@@ -63,7 +63,13 @@ func run() error {
 		return err
 	}
 
-	formatter := output.TableFormatter{}
+	var formatter output.Formatter
+
+	if config.JsonFormatter {
+		formatter = output.NewJSONFormatter(config.Pretty)
+	} else {
+		formatter = output.NewTableFormatter()
+	}
 
 	if err := formatter.Write(ctx, os.Stdout, output.SearchOutput{
 		Query:   config.Query,
