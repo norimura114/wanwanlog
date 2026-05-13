@@ -12,7 +12,7 @@ const (
 	TokenEqual
 	TokenBangEqual
 	TokenGreater
-	TokenGraterEqual
+	TokenGreaterEqual
 	TokenLess
 	TokenLessEqual
 	TokenMinus

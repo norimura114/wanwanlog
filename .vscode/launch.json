@@ -10,7 +10,7 @@
       "request": "launch",
       "mode": "auto",
       "program": "${workspaceFolder}/cmd/wwlog/main.go",
-      "args": ["--file", "/Users/norimura/workspace/norimura114/wanwanlog/testdata/logs.jsonl", "--query", ""]
+      "args": ["--file", "/Users/norimura/workspace/norimura114/wanwanlog/testdata/logs.jsonl", "--query", "@attrs.duration_ms:1234"]
     }
   ]
 }

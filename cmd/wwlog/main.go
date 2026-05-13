@@ -18,43 +18,6 @@ func main() {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-
-	// config, err := cli.ParseArgs(os.Args[1:], os.Stderr)
-
-	// if err != nil {
-	// 	fmt.Fprintln(os.Stderr, err)
-	// 	os.Exit(1)
-	// }
-
-	// if config.ShowHelp {
-	// 	printHelp()
-	// 	return
-	// }
-
-	// if config.ShowVersion {
-	// 	fmt.Println(version.Version)
-	// 	return
-	// }
-
-	// src := source.NewLocalFileSource(config.FilePath)
-	// reader, err := src.Open(context.Background())
-	// if err != nil {
-	// 	fmt.Fprintf(os.Stderr, "failed to open source: %v\n", err)
-	// 	os.Exit(1)
-	// }
-	// defer reader.Close()
-
-	// parser := logparser.NewJSONLinesParser()
-
-	// records, err := parser.Parse(reader)
-	// if err != nil {
-	// 	fmt.Fprintf(os.Stderr, "failed to parser logs: %v\n", err)
-	// 	os.Exit(1)
-	// }
-
-	// for _, record := range records {
-	// 	fmt.Printf("[%s] %s: %s\n", record.Level, record.Service, record.Message)
-	// }
 }
 
 func run() error {
@@ -100,9 +63,13 @@ func run() error {
 		return err
 	}
 
-	fmt.Fprintf(os.Stderr, "total: %d\n", result.Result.Total)
+	formatter := output.TableFormatter{}
 
-	if err := output.WriteTable(os.Stdout, result.Result.Records); err != nil {
+	if err := formatter.Write(ctx, os.Stdout, output.SearchOutput{
+		Query:   config.Query,
+		Total:   result.Result.Total,
+		Results: result.Result.Records,
+	}); err != nil {
 		return fmt.Errorf("write output: %w", err)
 	}
 

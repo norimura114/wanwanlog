@@ -35,13 +35,13 @@ func ParseLiteral(input string, quoted bool) (Literal, error) {
 	if n, err := strconv.ParseFloat(input, 64); err == nil {
 		return Literal{
 			Kind: LiteralNumber,
-			Num: n,
+			Num:  n,
 			Text: input,
 		}, nil
 	}
 
 	return Literal{
 		Kind: LiteralString,
-		Text: input
+		Text: input,
 	}, nil
 }
