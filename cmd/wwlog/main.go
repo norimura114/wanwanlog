@@ -6,10 +6,12 @@ import (
 	"os"
 	"wanwanlog/internal/app/usecase"
 	"wanwanlog/internal/cli"
+	"wanwanlog/internal/logrecord"
 	"wanwanlog/internal/output"
 	"wanwanlog/internal/parse"
 	"wanwanlog/internal/search"
 	"wanwanlog/internal/source"
+	"wanwanlog/internal/tui"
 	"wanwanlog/internal/version"
 )
 
@@ -80,6 +82,60 @@ func run() error {
 	}
 
 	return nil
+}
+
+func runTUI() error {
+	config, err := cli.ParseArgs(os.Args[1:], os.Stderr)
+
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	if config.ShowHelp {
+		printHelp()
+		return nil
+	}
+
+	if config.ShowVersion {
+		fmt.Println(version.Version)
+		return nil
+	}
+
+	ctx := context.Background()
+
+	store, err := search.OpenSQLiteStore(":memory:")
+	if err != nil {
+		return fmt.Errorf("create sqlite store: %w", err)
+	}
+	defer store.Close()
+
+	uc := usecase.NewSearchLogsUseCase(
+		func(path string) source.Source {
+			return source.NewLocalFileSource(path)
+		},
+		parse.NewJSONLinesParser(),
+		store,
+	)
+
+	searchFunc := func(ctx context.Context, query string) ([]logrecord.LogRecord, error) {
+		result, err := uc.Execute(ctx, usecase.SearchLogsInput{
+			InputPath: config.FilePath,
+			Query:     query,
+			Limit:     100,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return result.Result.Records, nil
+	}
+
+	initialRecords, err := searchFunc(ctx, "")
+	if err != nil {
+		return err
+	}
+
+	return tui.Run(ctx, searchFunc, initialRecords)
 }
 
 func printHelp() {
