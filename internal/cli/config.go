@@ -1,8 +1,10 @@
 package cli
 
 type Config struct {
-	FilePath    string
-	Query       string
-	ShowHelp    bool
-	ShowVersion bool
+	FilePath      string
+	Query         string
+	ShowHelp      bool
+	ShowVersion   bool
+	JsonFormatter bool
+	Pretty        bool
 }

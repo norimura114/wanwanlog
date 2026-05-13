@@ -10,8 +10,8 @@ type JSONFormatter struct {
 	Pretty bool
 }
 
-func NewJSONFormatter() *JSONFormatter {
-	return &JSONFormatter{}
+func NewJSONFormatter(pretty bool) *JSONFormatter {
+	return &JSONFormatter{Pretty: pretty}
 }
 
 func (f *JSONFormatter) Write(ctx context.Context, w io.Writer, out SearchOutput) error {

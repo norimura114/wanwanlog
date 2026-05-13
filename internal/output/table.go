@@ -17,14 +17,14 @@ type TableFormatter struct {
 
 func NewTableFormatter() *TableFormatter {
 	return &TableFormatter{
-		MaxMessageWidth:    60,
+		MaxMessageWidth:    40,
 		MaxAttributesWidth: 40,
 	}
 }
 
 func (f *TableFormatter) Write(ctx context.Context, w io.Writer, out SearchOutput) error {
 	if f.MaxMessageWidth <= 0 {
-		f.MaxMessageWidth = 60
+		f.MaxMessageWidth = 40
 	}
 
 	if f.MaxAttributesWidth <= 0 {
@@ -48,7 +48,7 @@ func (f *TableFormatter) Write(ctx context.Context, w io.Writer, out SearchOutpu
 
 	if _, err := fmt.Fprintf(
 		w,
-		"%-19s  %-5s  %-12s  %-60s  %s\n",
+		"%-19s  %-5s  %-12s  %-40s  %s\n",
 		"TIME",
 		"LEVEL",
 		"SERVICE",
@@ -66,7 +66,7 @@ func (f *TableFormatter) Write(ctx context.Context, w io.Writer, out SearchOutpu
 		}
 
 		line := fmt.Sprintf(
-			"%-19s  %-5s  %-12s  %-60s  %s\n",
+			"%-19s  %-5s  %-12s  %-40s  %s\n",
 			formatTime(record.Timestamp),
 			formatStatus(record.Status),
 			truncate(record.Service, 12),
