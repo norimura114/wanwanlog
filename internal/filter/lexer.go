@@ -49,7 +49,7 @@ func (l *Lexer) NextToken() (Token, error) {
 		if l.peek() == '=' {
 			l.advance()
 			l.advance()
-			return Token{Type: TokenGraterEqual, Literal: ">="}, nil
+			return Token{Type: TokenGreaterEqual, Literal: ">="}, nil
 		}
 		l.advance()
 		return Token{Type: TokenGreater, Literal: ">"}, nil

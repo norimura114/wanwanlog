@@ -28,8 +28,11 @@ func TestParseAttributeExpr(t *testing.T) {
 	}
 
 	expected := AttributeExpr{
-		Key:   "user.id",
-		Value: "123",
+		Key: "user.id",
+		Value: Literal{
+			Kind: LiteralString,
+			Text: "123",
+		},
 	}
 
 	if !reflect.DeepEqual(expr, expected) {
@@ -119,8 +122,11 @@ func TestParseMixedExpr(t *testing.T) {
 				},
 			},
 			AttributeExpr{
-				Key:   "user.id",
-				Value: "123",
+				Key: "user.id",
+				Value: Literal{
+					Kind: LiteralString,
+					Text: "123",
+				},
 			},
 			PhraseExpr{
 				Value: "failed to connect",
