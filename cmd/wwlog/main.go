@@ -4,13 +4,60 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"wanwanlog/internal/app/usecase"
 	"wanwanlog/internal/cli"
-	"wanwanlog/internal/logparser"
+	"wanwanlog/internal/output"
+	"wanwanlog/internal/parse"
+	"wanwanlog/internal/search"
 	"wanwanlog/internal/source"
 	"wanwanlog/internal/version"
 )
 
 func main() {
+	if err := run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+
+	// config, err := cli.ParseArgs(os.Args[1:], os.Stderr)
+
+	// if err != nil {
+	// 	fmt.Fprintln(os.Stderr, err)
+	// 	os.Exit(1)
+	// }
+
+	// if config.ShowHelp {
+	// 	printHelp()
+	// 	return
+	// }
+
+	// if config.ShowVersion {
+	// 	fmt.Println(version.Version)
+	// 	return
+	// }
+
+	// src := source.NewLocalFileSource(config.FilePath)
+	// reader, err := src.Open(context.Background())
+	// if err != nil {
+	// 	fmt.Fprintf(os.Stderr, "failed to open source: %v\n", err)
+	// 	os.Exit(1)
+	// }
+	// defer reader.Close()
+
+	// parser := logparser.NewJSONLinesParser()
+
+	// records, err := parser.Parse(reader)
+	// if err != nil {
+	// 	fmt.Fprintf(os.Stderr, "failed to parser logs: %v\n", err)
+	// 	os.Exit(1)
+	// }
+
+	// for _, record := range records {
+	// 	fmt.Printf("[%s] %s: %s\n", record.Level, record.Service, record.Message)
+	// }
+}
+
+func run() error {
 	config, err := cli.ParseArgs(os.Args[1:], os.Stderr)
 
 	if err != nil {
@@ -20,33 +67,46 @@ func main() {
 
 	if config.ShowHelp {
 		printHelp()
-		return
+		return nil
 	}
 
 	if config.ShowVersion {
 		fmt.Println(version.Version)
-		return
+		return nil
 	}
 
-	src := source.NewLocalFileSource(config.FilePath)
-	reader, err := src.Open(context.Background())
+	ctx := context.Background()
+
+	store, err := search.OpenSQLiteStore(":memory:")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to open source: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("create sqlite store: %w", err)
 	}
-	defer reader.Close()
+	defer store.Close()
 
-	parser := logparser.NewJSONLinesParser()
+	uc := usecase.NewSearchLogsUseCase(
+		func(path string) source.Source {
+			return source.NewLocalFileSource(path)
+		},
+		parse.NewJSONLinesParser(),
+		store,
+	)
 
-	records, err := parser.Parse(reader)
+	result, err := uc.Execute(ctx, usecase.SearchLogsInput{
+		InputPath: config.FilePath,
+		Query:     config.Query,
+		Limit:     100,
+	})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to parser logs: %v\n", err)
-		os.Exit(1)
+		return err
 	}
 
-	for _, record := range records {
-		fmt.Printf("[%s] %s: %s\n", record.Level, record.Service, record.Message)
+	fmt.Fprintf(os.Stderr, "total: %d\n", result.Result.Total)
+
+	if err := output.WriteTable(os.Stdout, result.Result.Records); err != nil {
+		return fmt.Errorf("write output: %w", err)
 	}
+
+	return nil
 }
 
 func printHelp() {

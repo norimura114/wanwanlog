@@ -1,38 +1,28 @@
 package logrecord
 
-import "time"
+import (
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
+	"time"
+)
 
 type LogRecord struct {
-	Timestamp time.Time
-	Message   string
-	Level     string
-	Service   string
-	Attrs     map[string]any
-	Raw       map[string]any
+	ID         string
+	Timestamp  time.Time
+	Message    string
+	Service    string
+	Status     string
+	Attributes map[string]any
+	Raw        string
 }
 
-func New(
-	timestamp time.Time,
-	message string,
-	level string,
-	service string,
-	attrs map[string]any,
-	raw map[string]any,
-) LogRecord {
-	if attrs == nil {
-		attrs = map[string]any{}
+func NewID() (string, error) {
+	b := make([]byte, 16)
+
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("generate log record id: %w", err)
 	}
 
-	if raw == nil {
-		raw = map[string]any{}
-	}
-
-	return LogRecord{
-		Timestamp: timestamp,
-		Message:   message,
-		Level:     level,
-		Service:   service,
-		Attrs:     attrs,
-		Raw:       raw,
-	}
+	return hex.EncodeToString(b), nil
 }
