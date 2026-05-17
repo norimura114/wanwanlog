@@ -26,8 +26,7 @@ func run() error {
 	config, err := cli.ParseArgs(os.Args[1:], os.Stderr)
 
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return err
 	}
 
 	if config.ShowHelp {
@@ -38,6 +37,10 @@ func run() error {
 	if config.ShowVersion {
 		fmt.Println(version.Version)
 		return nil
+	}
+
+	if config.TUI {
+		return runTUI(config)
 	}
 
 	ctx := context.Background()
@@ -84,24 +87,7 @@ func run() error {
 	return nil
 }
 
-func runTUI() error {
-	config, err := cli.ParseArgs(os.Args[1:], os.Stderr)
-
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-
-	if config.ShowHelp {
-		printHelp()
-		return nil
-	}
-
-	if config.ShowVersion {
-		fmt.Println(version.Version)
-		return nil
-	}
-
+func runTUI(config cli.Config) error {
 	ctx := context.Background()
 
 	store, err := search.OpenSQLiteStore(":memory:")
@@ -142,11 +128,14 @@ func printHelp() {
 	fmt.Println(`wwlog - Datadog like log viewer for local JSON Lines file
 
 Usage:
-  wwlog --file <path> [--query <query>]
+  wwlog --file <path> [--query <query>] [--tui]
 
 Options:
-  --files    Path to a JSON Lines log file
+  --file     Path to a JSON Lines log file
   --query    Search query
+  --tui      Start in TUI mode
+  --json     Output as json
+  --pretty   Pretty format
   --version  Show version
   --help     Show help`)
 }
