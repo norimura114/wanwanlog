@@ -27,6 +27,15 @@ Release flow:
 
 The current CLI version is stored in `internal/version/version.go`.
 
+For an alpha release, create and push a prerelease tag:
+
+```bash
+git tag v0.1.0-alpha.1
+git push origin v0.1.0-alpha.1
+```
+
+The tag push runs GoReleaser and marks the GitHub Release as a prerelease.
+
 If CI should run automatically on release-please PRs, create a repository secret
 named `RELEASE_PLEASE_TOKEN` with a GitHub token that has repository contents and
 pull request access. Without it, the built-in `GITHUB_TOKEN` is used.
