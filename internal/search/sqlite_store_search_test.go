@@ -120,7 +120,7 @@ func TestSQLiteStoreSearchByAttribute(t *testing.T) {
 	}
 
 	result, err := store.Search(ctx, filter.SearchQuery{
-		Filter: "@user.id:123",
+		Filter: `@user.id:"123"`,
 		Limit:  100,
 	})
 	if err != nil {

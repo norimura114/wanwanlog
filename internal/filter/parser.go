@@ -74,7 +74,7 @@ func (p *Parser) parseExpr() (Expr, error) {
 		if err := p.next(); err != nil {
 			return nil, err
 		}
-		return KeywordExpr{Value: value}, nil
+		return PhraseExpr{Value: value}, nil
 	default:
 		return nil, fmt.Errorf("unexpected token: %s", p.cur.Literal)
 	}

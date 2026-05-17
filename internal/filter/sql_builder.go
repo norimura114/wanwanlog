@@ -20,7 +20,7 @@ func NewSQLBuilder() *SQLBuilder {
 func (b *SQLBuilder) Build(expr Expr) (SQLQuery, error) {
 	where, args, err := b.buildExpr(expr)
 	if err != nil {
-		return SQLQuery{}, nil
+		return SQLQuery{}, err
 	}
 
 	return SQLQuery{
@@ -46,8 +46,8 @@ func (b *SQLBuilder) buildExpr(expr Expr) (string, []any, error) {
 	case KeywordExpr:
 		return b.buildKeywordExpr(e)
 
-	// case PhraseExpr:
-	// 	return b.buildPhraseExpr(e)
+	case PhraseExpr:
+		return b.buildPhraseExpr(e)
 
 	default:
 		return "", nil, fmt.Errorf("unsupported filter expression %T", expr)
@@ -161,7 +161,7 @@ func buildBoolAttributeSQL(jsonPath string, op CompareOp, value bool) (string, [
 	}
 
 	sql := `
-json_type(attributes, ?) = IN ('true', 'false')
+json_type(attributes, ?) IN ('true', 'false')
 AND json_extract(attributes, ?) ` + string(op) + ` ?
 `
 	return sql, []any{jsonPath, jsonPath, sqlValue}, nil
