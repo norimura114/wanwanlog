@@ -37,6 +37,10 @@ archives:
 checksum:
   name_template: checksums.txt
 
+release:
+  prerelease: auto
+  make_latest: false
+
 snapshot:
   version_template: "{{ incpatch .Version }}-next"
 
