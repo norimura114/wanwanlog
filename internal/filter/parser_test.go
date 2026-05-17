@@ -29,9 +29,11 @@ func TestParseAttributeExpr(t *testing.T) {
 
 	expected := AttributeExpr{
 		Key: "user.id",
+		Op:  OpEq,
 		Value: Literal{
-			Kind: LiteralString,
+			Kind: LiteralNumber,
 			Text: "123",
+			Num:  123,
 		},
 	}
 
@@ -123,9 +125,11 @@ func TestParseMixedExpr(t *testing.T) {
 			},
 			AttributeExpr{
 				Key: "user.id",
+				Op:  OpEq,
 				Value: Literal{
-					Kind: LiteralString,
+					Kind: LiteralNumber,
 					Text: "123",
+					Num:  123,
 				},
 			},
 			PhraseExpr{

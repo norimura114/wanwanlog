@@ -25,7 +25,7 @@ func ParseLiteral(input string, quoted bool) (Literal, error) {
 			Text: input,
 		}, nil
 
-	case "nul":
+	case "null":
 		return Literal{
 			Kind: LiteralNull,
 			Text: input,

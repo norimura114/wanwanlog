@@ -39,28 +39,28 @@ func (l *Lexer) NextToken() (Token, error) {
 		l.advance()
 		return Token{Type: TokenEqual, Literal: "=", Pos: start}, nil
 	case '!':
-		if l.peek() == '=' {
+		if l.peekNext() == '=' {
 			l.advance()
 			l.advance()
-			return Token{Type: TokenBangEqual, Literal: "!="}, nil
+			return Token{Type: TokenBangEqual, Literal: "!=", Pos: start}, nil
 		}
 		return Token{}, fmt.Errorf("unexpected character: !")
 	case '>':
-		if l.peek() == '=' {
+		if l.peekNext() == '=' {
 			l.advance()
 			l.advance()
-			return Token{Type: TokenGreaterEqual, Literal: ">="}, nil
+			return Token{Type: TokenGreaterEqual, Literal: ">=", Pos: start}, nil
 		}
 		l.advance()
-		return Token{Type: TokenGreater, Literal: ">"}, nil
+		return Token{Type: TokenGreater, Literal: ">", Pos: start}, nil
 	case '<':
-		if l.peek() == '=' {
+		if l.peekNext() == '=' {
 			l.advance()
 			l.advance()
-			return Token{Type: TokenLessEqual, Literal: "<="}, nil
+			return Token{Type: TokenLessEqual, Literal: "<=", Pos: start}, nil
 		}
 		l.advance()
-		return Token{Type: TokenLess, Literal: "<"}, nil
+		return Token{Type: TokenLess, Literal: "<", Pos: start}, nil
 	case '-':
 		l.advance()
 		return Token{Type: TokenMinus, Literal: "-", Pos: start}, nil
@@ -123,6 +123,7 @@ func (l *Lexer) readString() (Token, error) {
 				Type:    TokenString,
 				Literal: b.String(),
 				Pos:     start,
+				Quoted:  true,
 			}, nil
 		}
 
@@ -154,6 +155,14 @@ func (l *Lexer) readString() (Token, error) {
 
 func (l *Lexer) peek() rune {
 	return l.input[l.pos]
+}
+
+func (l *Lexer) peekNext() rune {
+	if l.pos+1 >= len(l.input) {
+		return 0
+	}
+
+	return l.input[l.pos+1]
 }
 
 func (l *Lexer) advance() {

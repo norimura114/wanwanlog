@@ -67,7 +67,7 @@ func TestSQLiteStore_InsertBatch(t *testing.T) {
 func TestSQLiteStore_InsertBatch_InsertsLogFields(t *testing.T) {
 	ctx := context.Background()
 
-	store, err := OpenSQLiteStore(":memory")
+	store, err := OpenSQLiteStore(":memory:")
 	if err != nil {
 		t.Fatalf("failed to open sqlite store: %v", err)
 	}
