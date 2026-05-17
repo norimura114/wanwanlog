@@ -1,9 +1,14 @@
 package tui
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"wanwanlog/internal/logrecord"
+
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 )
 
 func (m Model) View() string {
@@ -72,34 +77,24 @@ func (m Model) renderFilter() string {
 
 func (m Model) renderBody(height int) string {
 	leftWidth := m.width / 2
-	rightWidth := m.width - leftWidth - 1
+	rightWidth := m.width - leftWidth
+	leftContentWidth := paneContentWidth(listPaneStyle, leftWidth)
+	rightContentWidth := paneContentWidth(detailPaneStyle, rightWidth)
+	contentHeight := paneContentHeight(listPaneStyle, height)
 
-	list := m.renderList(leftWidth, height)
-	detail := m.renderDetail(rightWidth, height)
+	list := m.renderList(leftContentWidth, contentHeight)
+	detail := m.renderDetail(rightContentWidth, contentHeight)
 
-	lines := make([]string, 0, height)
+	leftPane := listPaneStyle.
+		Width(paneRenderWidth(listPaneStyle, leftWidth)).
+		Height(paneRenderHeight(listPaneStyle, height)).
+		Render(list)
+	rightPane := detailPaneStyle.
+		Width(paneRenderWidth(detailPaneStyle, rightWidth)).
+		Height(paneRenderHeight(detailPaneStyle, height)).
+		Render(detail)
 
-	listLines := strings.Split(list, "\n")
-	detailLines := strings.Split(detail, "\n")
-
-	for i := 0; i < height; i++ {
-		left := ""
-		right := ""
-
-		if i < len(listLines) {
-			left = listLines[i]
-		}
-		if i < len(detailLines) {
-			right = detailLines[i]
-		}
-
-		lines = append(lines,
-			listPaneStyle.Width(leftWidth).Render(padRight(left, leftWidth))+
-				detailPaneStyle.Width(rightWidth).Render(padRight(right, rightWidth)),
-		)
-	}
-
-	return strings.Join(lines, "\n")
+	return lipgloss.JoinHorizontal(lipgloss.Top, leftPane, rightPane)
 }
 
 func (m Model) renderList(width int, height int) string {
@@ -141,7 +136,7 @@ func (m Model) renderDetail(width int, height int) string {
 		return "No selected log"
 	}
 
-	lines := formatDetail(*record)
+	lines := formatDetail(*record, width)
 
 	if m.detailOffset > len(lines)-1 {
 		m.detailOffset = max(0, len(lines)-1)
@@ -205,7 +200,7 @@ func formatLogLine(record logrecord.LogRecord, width int) string {
 	return truncate(line, width)
 }
 
-func formatDetail(record logrecord.LogRecord) []string {
+func formatDetail(record logrecord.LogRecord, width int) []string {
 	lines := []string{
 		"timestamp: " + record.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
 		"service:   " + record.Service,
@@ -215,13 +210,12 @@ func formatDetail(record logrecord.LogRecord) []string {
 		"attributes:",
 	}
 
-	for key, value := range record.Attributes {
-		lines = append(lines, fmt.Sprintf("  %s: %v", key, value))
-	}
+	lines = append(lines, indentLines(formatJSON(record.Attributes), "  ")...)
 
-	lines = append(lines, "", "raw:", record.Raw)
+	lines = append(lines, "", "raw:")
+	lines = append(lines, indentLines(formatRaw(record.Raw), "  ")...)
 
-	return lines
+	return wrapLines(lines, width)
 }
 
 func singleLine(s string) string {
@@ -235,25 +229,97 @@ func truncate(s string, width int) string {
 		return ""
 	}
 
-	runes := []rune(s)
-	if len(runes) <= width {
+	if lipgloss.Width(s) <= width {
 		return s
 	}
 
 	if width <= 1 {
-		return string(runes[:width])
+		return ansi.Truncate(s, width, "")
 	}
 
-	return string(runes[:width-1]) + "…"
+	return ansi.Truncate(s, width, "…")
 }
 
 func padRight(s string, width int) string {
-	runes := []rune(s)
-	if len(runes) >= width {
+	cellWidth := lipgloss.Width(s)
+	if cellWidth >= width {
 		return s
 	}
 
-	return s + strings.Repeat(" ", width-len(runes))
+	return s + strings.Repeat(" ", width-cellWidth)
+}
+
+func fitLine(s string, width int) string {
+	return padRight(truncate(s, width), width)
+}
+
+func paneContentWidth(style lipgloss.Style, width int) int {
+	return max(0, width-style.GetHorizontalFrameSize())
+}
+
+func paneRenderWidth(style lipgloss.Style, width int) int {
+	return max(0, width-style.GetHorizontalMargins()-style.GetHorizontalBorderSize())
+}
+
+func paneContentHeight(style lipgloss.Style, height int) int {
+	return max(0, height-style.GetVerticalFrameSize())
+}
+
+func paneRenderHeight(style lipgloss.Style, height int) int {
+	return max(0, height-style.GetVerticalMargins()-style.GetVerticalBorderSize())
+}
+
+func formatJSON(value any) []string {
+	data, err := json.MarshalIndent(value, "", "  ")
+	if err != nil {
+		return []string{fmt.Sprintf("%v", value)}
+	}
+
+	return strings.Split(string(data), "\n")
+}
+
+func formatRaw(raw string) []string {
+	var buf bytes.Buffer
+	if err := json.Indent(&buf, []byte(raw), "", "  "); err == nil {
+		return strings.Split(buf.String(), "\n")
+	}
+
+	return []string{singleLine(raw)}
+}
+
+func indentLines(lines []string, prefix string) []string {
+	indented := make([]string, 0, len(lines))
+	for _, line := range lines {
+		indented = append(indented, prefix+line)
+	}
+	return indented
+}
+
+func wrapLines(lines []string, width int) []string {
+	if width <= 0 {
+		return []string{""}
+	}
+
+	wrapped := make([]string, 0, len(lines))
+	for _, line := range lines {
+		if line == "" {
+			wrapped = append(wrapped, "")
+			continue
+		}
+
+		for lipgloss.Width(line) > width {
+			wrapped = append(wrapped, ansi.Truncate(line, width, ""))
+			line = strings.TrimLeft(ansi.TruncateLeft(line, width, ""), " ")
+			if line == "" {
+				break
+			}
+		}
+		if line != "" {
+			wrapped = append(wrapped, line)
+		}
+	}
+
+	return wrapped
 }
 
 func max(a int, b int) int {

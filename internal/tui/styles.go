@@ -11,9 +11,13 @@ var (
 			Padding(0, 1)
 
 	listPaneStyle = lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder()).
+			BorderForeground(lipgloss.Color("240")).
 			Padding(0, 1)
 
 	detailPaneStyle = lipgloss.NewStyle().
+			Border(lipgloss.NormalBorder()).
+			BorderForeground(lipgloss.Color("240")).
 			Padding(0, 1)
 
 	selectedLineStyle = lipgloss.NewStyle().

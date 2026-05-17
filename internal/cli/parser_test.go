@@ -46,6 +46,23 @@ func TestParseArgsWithFileAndQuery(t *testing.T) {
 	}
 }
 
+func TestParseArgsWithTUI(t *testing.T) {
+	var output bytes.Buffer
+
+	config, err := ParseArgs([]string{
+		"--file", "./logs/sample.jsonl",
+		"--tui",
+	}, &output)
+
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	if !config.TUI {
+		t.Fatal("expected TUI to be true")
+	}
+}
+
 func TestParseArgsWithoutFile(t *testing.T) {
 	var output bytes.Buffer
 
