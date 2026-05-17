@@ -1,7 +1,6 @@
 package parse
 
 import (
-	"context"
 	"io"
 	"wanwanlog/internal/logrecord"
 )
@@ -11,6 +10,18 @@ type ParsedLog struct {
 	Line   int
 }
 
+type ParseResult struct {
+	Log  ParsedLog
+	Line int
+	Err  error
+}
+
+type Iterator interface {
+	Next() bool
+	Result() ParseResult
+	Err() error
+}
+
 type Parser interface {
-	Parse(ctx context.Context, r io.Reader) (<-chan ParsedLog, <-chan error)
+	Parse(r io.Reader) Iterator
 }

@@ -2,7 +2,6 @@ package parse
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,57 +15,66 @@ type JSONLinesParser struct{}
 func NewJSONLinesParser() *JSONLinesParser {
 	return &JSONLinesParser{}
 }
-func (p *JSONLinesParser) Parse(
-	ctx context.Context,
-	r io.Reader,
-) (<-chan ParsedLog, <-chan error) {
-	out := make(chan ParsedLog)
-	errs := make(chan error)
 
-	go func() {
-		defer close(out)
-		defer close(errs)
+func (p *JSONLinesParser) Parse(r io.Reader) Iterator {
+	scanner := bufio.NewScanner(r)
 
-		scanner := bufio.NewScanner(r)
+	const maxLineSize = 10 * 1024 * 1024
+	scanner.Buffer(make([]byte, 64*1024), maxLineSize)
 
-		const maxLineSize = 10 * 1024 * 1024
-		scanner.Buffer(make([]byte, 64*1024), maxLineSize)
+	return &JSONLinesIterator{
+		scanner: scanner,
+	}
+}
 
-		lineNo := 0
+type JSONLinesIterator struct {
+	scanner *bufio.Scanner
+	lineNo  int
+	result  ParseResult
+	err     error
+}
 
-		for scanner.Scan() {
-			select {
-			case <-ctx.Done():
-				errs <- ctx.Err()
-				return
-			default:
+func (it *JSONLinesIterator) Next() bool {
+	for it.scanner.Scan() {
+		it.lineNo++
+		line := strings.TrimSpace(it.scanner.Text())
+
+		if line == "" {
+			continue
+		}
+
+		record, err := parseJSONLine(line)
+		if err != nil {
+			it.result = ParseResult{
+				Line: it.lineNo,
+				Err:  fmt.Errorf("line %d: %w", it.lineNo, err),
 			}
+			return true
+		}
 
-			lineNo++
-			line := strings.TrimSpace(scanner.Text())
-
-			if line == "" {
-				continue
-			}
-
-			record, err := parseJSONLine(line)
-			if err != nil {
-				errs <- fmt.Errorf("line %d: %w", lineNo, err)
-				continue
-			}
-
-			out <- ParsedLog{
+		it.result = ParseResult{
+			Log: ParsedLog{
 				Record: record,
-				Line:   lineNo,
-			}
+				Line:   it.lineNo,
+			},
+			Line: it.lineNo,
 		}
+		return true
+	}
 
-		if err := scanner.Err(); err != nil {
-			errs <- err
-		}
-	}()
+	if err := it.scanner.Err(); err != nil {
+		it.err = err
+	}
 
-	return out, errs
+	return false
+}
+
+func (it *JSONLinesIterator) Result() ParseResult {
+	return it.result
+}
+
+func (it *JSONLinesIterator) Err() error {
+	return it.err
 }
 
 func parseJSONLine(line string) (logrecord.LogRecord, error) {

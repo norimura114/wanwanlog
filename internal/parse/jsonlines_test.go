@@ -1,7 +1,6 @@
 package parse
 
 import (
-	"context"
 	"strings"
 	"testing"
 )
@@ -12,17 +11,20 @@ func TestJSONLinesParser_Parse(t *testing.T) {
 
 	parser := NewJSONLinesParser()
 
-	logs, errs := parser.Parse(context.Background(), input)
+	it := parser.Parse(input)
 
 	var records []ParsedLog
-	for parsed := range logs {
-		records = append(records, parsed)
+	for it.Next() {
+		result := it.Result()
+		if result.Err != nil {
+			t.Fatalf("unexpected error: %v", result.Err)
+		}
+
+		records = append(records, result.Log)
 	}
 
-	for err := range errs {
-		if err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+	if err := it.Err(); err != nil {
+		t.Fatalf("unexpected scanner error: %v", err)
 	}
 
 	if len(records) != 2 {
@@ -63,18 +65,22 @@ invalid json
 
 	parser := NewJSONLinesParser()
 
-	logs, errs := parser.Parse(context.Background(), input)
+	it := parser.Parse(input)
 
 	var count int
-	for range logs {
+	var errCount int
+	for it.Next() {
+		result := it.Result()
+		if result.Err != nil {
+			errCount++
+			continue
+		}
+
 		count++
 	}
 
-	var errCount int
-	for err := range errs {
-		if err != nil {
-			errCount++
-		}
+	if err := it.Err(); err != nil {
+		t.Fatalf("unexpected scanner error: %v", err)
 	}
 
 	if count != 2 {
