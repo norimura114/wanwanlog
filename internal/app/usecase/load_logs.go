@@ -40,43 +40,37 @@ func (u *LoadLogs) Execute(
 	ctx context.Context,
 	r io.Reader,
 ) (LoadLogsResult, error) {
-	logs, errs := u.parser.Parse(ctx, r)
-
 	result := LoadLogsResult{}
 	batch := make([]logrecord.LogRecord, 0, u.batchSize)
+	it := u.parser.Parse(r)
 
-	for logs != nil || errs != nil {
+	for it.Next() {
 		select {
-		case parsed, ok := <-logs:
-			if !ok {
-				logs = nil
-				continue
-			}
-
-			batch = append(batch, parsed.Record)
-
-			if len(batch) >= u.batchSize {
-				if err := u.store.InsertBatch(ctx, batch); err != nil {
-					return result, fmt.Errorf("insert batch %w", err)
-				}
-
-				result.LoadedCount += len(batch)
-				batch = batch[:0]
-			}
-
-		case err, ok := <-errs:
-			if !ok {
-				errs = nil
-				continue
-			}
-
-			if err != nil {
-				result.ErrorCount++
-			}
-
 		case <-ctx.Done():
 			return result, ctx.Err()
+		default:
 		}
+
+		parsed := it.Result()
+		if parsed.Err != nil {
+			result.ErrorCount++
+			continue
+		}
+
+		batch = append(batch, parsed.Log.Record)
+
+		if len(batch) >= u.batchSize {
+			if err := u.store.InsertBatch(ctx, batch); err != nil {
+				return result, fmt.Errorf("insert batch %w", err)
+			}
+
+			result.LoadedCount += len(batch)
+			batch = batch[:0]
+		}
+	}
+
+	if err := it.Err(); err != nil {
+		return result, err
 	}
 
 	if len(batch) > 0 {

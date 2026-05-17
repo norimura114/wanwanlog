@@ -86,9 +86,8 @@ func (u *SearchLogsUseCase) Execute(ctx context.Context, input SearchLogsInput) 
 }
 
 func (u *SearchLogsUseCase) load(ctx context.Context, reader io.Reader) error {
-	recordsCh, errCh := u.Parser.Parse(ctx, reader)
-
 	batch := make([]logrecord.LogRecord, 0, u.BatchSize)
+	it := u.Parser.Parse(reader)
 
 	flush := func() error {
 		if len(batch) == 0 {
@@ -103,33 +102,29 @@ func (u *SearchLogsUseCase) load(ctx context.Context, reader io.Reader) error {
 		return nil
 	}
 
-	for recordsCh != nil || errCh != nil {
+	for it.Next() {
 		select {
-		case record, ok := <-recordsCh:
-			if !ok {
-				recordsCh = nil
-				continue
-			}
-
-			batch = append(batch, record.Record)
-
-			if len(batch) >= u.BatchSize {
-				if err := flush(); err != nil {
-					return err
-				}
-			}
-
-		case err, ok := <-errCh:
-			if !ok {
-				errCh = nil
-				continue
-			}
-
-			return fmt.Errorf("parse logs: %w", err)
-
 		case <-ctx.Done():
 			return ctx.Err()
+		default:
 		}
+
+		result := it.Result()
+		if result.Err != nil {
+			return fmt.Errorf("parse logs: %w", result.Err)
+		}
+
+		batch = append(batch, result.Log.Record)
+
+		if len(batch) >= u.BatchSize {
+			if err := flush(); err != nil {
+				return err
+			}
+		}
+	}
+
+	if err := it.Err(); err != nil {
+		return fmt.Errorf("parse logs: %w", err)
 	}
 
 	if err := flush(); err != nil {
