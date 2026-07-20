@@ -11,8 +11,9 @@ func Run(
 	ctx context.Context,
 	search SearchFunc,
 	initialRecords []logrecord.LogRecord,
+	options ModelOptions,
 ) error {
-	model := NewModel(ctx, search, initialRecords)
+	model := NewModel(ctx, search, initialRecords, options)
 
 	program := tea.NewProgram(
 		model,

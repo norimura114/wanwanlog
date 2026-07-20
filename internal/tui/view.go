@@ -21,6 +21,14 @@ func (m Model) View() string {
 	}
 
 	header := m.renderHeader()
+	if m.mode == ColumnsMode {
+		return strings.Join([]string{
+			header,
+			m.renderColumnSettings(max(1, m.height-2)),
+			m.renderFooter(),
+		}, "\n")
+	}
+
 	filter := m.renderFilter()
 
 	bodyHeight := m.height - 6
@@ -51,6 +59,8 @@ func (m Model) renderHeader() string {
 		mode = "DETAIL"
 	case HelpMode:
 		mode = "HELP"
+	case ColumnsMode:
+		mode = "COLUMNS"
 	}
 
 	text := fmt.Sprintf(" wwlog | mode=%s | rows=%d | selected=%d ",
@@ -113,26 +123,35 @@ func paneStyles(mode Mode) (lipgloss.Style, lipgloss.Style) {
 }
 
 func (m Model) renderList(width int, height int) string {
+	columns := visibleColumns(m.columns)
+	if len(columns) == 0 {
+		return "No columns"
+	}
+
+	dataHeight := max(0, height-1)
+	widths := browseColumnWidths(columns, m.records, max(0, width-2))
+	lines := make([]string, 0, height)
+	lines = append(lines, "  "+truncate(formatBrowseRow(columns, widths, nil), max(0, width-2)))
+
 	if len(m.records) == 0 {
-		return "No logs"
+		lines = append(lines, "  No logs")
+		return strings.Join(lines, "\n")
 	}
 
 	start := 0
-	if m.selectedIndex >= height {
-		start = m.selectedIndex - height + 1
+	if m.selectedIndex >= dataHeight {
+		start = m.selectedIndex - dataHeight + 1
 	}
 
-	end := start + height
+	end := start + dataHeight
 	if end > len(m.records) {
 		end = len(m.records)
 	}
 
-	lines := make([]string, 0, height)
-
 	for i := start; i < end; i++ {
 		record := m.records[i]
 
-		line := formatLogLine(record, width-2)
+		line := truncate(formatBrowseRow(columns, widths, &record), max(0, width-2))
 		if i == m.selectedIndex {
 			line = selectedLineStyle.Render("> " + line)
 		} else {
@@ -173,11 +192,13 @@ func (m Model) renderFooter() string {
 
 	switch m.mode {
 	case BrowseMode:
-		return footerStyle.Width(m.width).Render(" / filter | j/k move | l detail | ? help | q quit ")
+		return footerStyle.Width(m.width).Render(" / filter | j/k move | l detail | c columns | ? help | q quit ")
 	case FilterMode:
 		return footerStyle.Width(m.width).Render(" enter search | esc cancel ")
 	case DetailMode:
 		return footerStyle.Width(m.width).Render(" j/k scroll | h browse | esc back ")
+	case ColumnsMode:
+		return footerStyle.Width(m.width).Render(" j/k select | space toggle | J/K reorder | enter apply | esc cancel ")
 	default:
 		return footerStyle.Width(m.width).Render("")
 	}
@@ -197,20 +218,115 @@ func (m Model) renderHelp() string {
 		"G            last log",
 		"h / l        switch pane",
 		"d            detail pane",
+		"c            column settings",
 		"?            toggle help",
 	}, "\n")
 
 	return helpStyle.Width(m.width).Height(m.height).Render(content)
 }
 
-func formatLogLine(record logrecord.LogRecord, width int) string {
-	timestamp := record.Timestamp.Format("15:04:05")
-	status := record.Status
-	service := record.Service
-	message := singleLine(record.Message)
+func (m Model) renderColumnSettings(height int) string {
+	title := "Browse columns"
+	lines := []string{title, ""}
+	listHeight := max(1, height-len(lines))
+	start := min(m.columnOffset, max(0, len(m.columnDraft)-listHeight))
+	end := min(len(m.columnDraft), start+listHeight)
 
-	line := fmt.Sprintf("%s %-5s %-12s %s", timestamp, status, service, message)
-	return truncate(line, width)
+	for i := start; i < end; i++ {
+		column := m.columnDraft[i]
+		check := " "
+		if column.Visible {
+			check = "x"
+		}
+		cursor := "  "
+		if i == m.columnCursor {
+			cursor = "> "
+		}
+		line := fmt.Sprintf("%s[%s] %s", cursor, check, column.Name)
+		lines = append(lines, truncate(line, max(0, m.width-helpStyle.GetHorizontalFrameSize())))
+	}
+
+	return helpStyle.
+		Width(max(0, m.width-helpStyle.GetHorizontalFrameSize())).
+		Height(max(0, height-helpStyle.GetVerticalFrameSize())).
+		Render(strings.Join(lines, "\n"))
+}
+
+func browseColumnWidths(columns []Column, records []logrecord.LogRecord, available int) []int {
+	widths := make([]int, len(columns))
+	for i, column := range columns {
+		widths[i] = lipgloss.Width(column.Name)
+		for _, record := range records {
+			value := formatColumnValue(
+				column.Name,
+				record.Attributes,
+				record.Timestamp,
+				record.Status,
+				record.Service,
+				record.Message,
+			)
+			widths[i] = max(widths[i], lipgloss.Width(value))
+		}
+	}
+
+	contentWidth := max(0, available-max(0, len(columns)-1))
+	overflow := sum(widths) - contentWidth
+	if overflow <= 0 {
+		return widths
+	}
+
+	for i, column := range columns {
+		if column.Name != MessageColumn {
+			continue
+		}
+		reduction := min(overflow, max(0, widths[i]-1))
+		widths[i] -= reduction
+		overflow -= reduction
+		break
+	}
+
+	for overflow > 0 {
+		widest := -1
+		for i, width := range widths {
+			if width > 1 && (widest == -1 || width > widths[widest]) {
+				widest = i
+			}
+		}
+		if widest == -1 {
+			break
+		}
+		widths[widest]--
+		overflow--
+	}
+
+	return widths
+}
+
+func formatBrowseRow(columns []Column, widths []int, record *logrecord.LogRecord) string {
+	cells := make([]string, len(columns))
+	for i, column := range columns {
+		value := column.Name
+		if record != nil {
+			value = formatColumnValue(
+				column.Name,
+				record.Attributes,
+				record.Timestamp,
+				record.Status,
+				record.Service,
+				record.Message,
+			)
+		}
+		cells[i] = fitLine(value, widths[i])
+	}
+	return strings.Join(cells, " ")
+}
+
+func sum(values []int) int {
+	total := 0
+	for _, value := range values {
+		total += value
+	}
+	return total
 }
 
 func formatDetail(record logrecord.LogRecord, width int) []string {

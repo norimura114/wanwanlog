@@ -121,19 +121,51 @@ func runTUI(config cli.Config) error {
 		return err
 	}
 
-	return tui.Run(ctx, searchFunc, initialRecords)
+	attributeNames, err := collectAttributeNames(config.FilePath)
+	if err != nil {
+		return err
+	}
+
+	return tui.Run(ctx, searchFunc, initialRecords, tui.ModelOptions{
+		AttributeNames:  attributeNames,
+		SelectedColumns: config.Columns,
+	})
+}
+
+func collectAttributeNames(path string) ([]string, error) {
+	reader, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open input for column discovery: %w", err)
+	}
+	defer reader.Close()
+
+	collector := tui.NewAttributeNameCollector()
+	iterator := parse.NewJSONLinesParser().Parse(reader)
+	for iterator.Next() {
+		result := iterator.Result()
+		if result.Err != nil {
+			return nil, result.Err
+		}
+		collector.Add(result.Log.Record.Attributes)
+	}
+	if err := iterator.Err(); err != nil {
+		return nil, fmt.Errorf("discover attribute columns: %w", err)
+	}
+
+	return collector.Names(), nil
 }
 
 func printHelp() {
 	fmt.Println(`wwlog - Datadog like log viewer for local JSON Lines file
 
 Usage:
-  wwlog --file <path> [--query <query>] [--tui]
+  wwlog --file <path> [--query <query>] [--tui] [--columns <columns>]
 
 Options:
   --file     Path to a JSON Lines log file
   --query    Search query
   --tui      Start in TUI mode
+  --columns  Comma-separated TUI browse columns
   --json     Output as json
   --pretty   Pretty format
   --version  Show version

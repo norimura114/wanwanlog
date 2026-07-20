@@ -91,6 +91,75 @@ func TestHLKeysSwitchPanes(t *testing.T) {
 	}
 }
 
+func TestColumnSettingsApplyReorderAndVisibilityChanges(t *testing.T) {
+	model := NewModel(
+		t.Context(),
+		nil,
+		[]logrecord.LogRecord{testLogRecord()},
+		ModelOptions{AttributeNames: []string{"@http.status_code"}},
+	)
+	model.width = 80
+	model.height = 24
+
+	updated, _ := model.handleBrowseKey(keyMsg("c"))
+	settings := updated.(Model)
+	if settings.mode != ColumnsMode {
+		t.Fatalf("mode = %v, want ColumnsMode", settings.mode)
+	}
+
+	updated, _ = settings.handleColumnsKey(keyMsg(" "))
+	settings = updated.(Model)
+	if settings.columnDraft[0].Visible {
+		t.Fatal("timestamp should be hidden in draft")
+	}
+
+	updated, _ = settings.handleColumnsKey(keyMsg("J"))
+	settings = updated.(Model)
+	if settings.columnDraft[1].Name != TimestampColumn {
+		t.Fatalf("reordered columns = %+v", settings.columnDraft[:2])
+	}
+
+	updated, _ = settings.handleColumnsKey(keyMsg("enter"))
+	applied := updated.(Model)
+	if applied.mode != BrowseMode {
+		t.Fatalf("mode = %v, want BrowseMode", applied.mode)
+	}
+	if applied.columns[1] != (Column{Name: TimestampColumn, Visible: false}) {
+		t.Fatalf("applied columns = %+v", applied.columns[:2])
+	}
+}
+
+func TestColumnSettingsCancelDiscardsChanges(t *testing.T) {
+	model := NewModel(t.Context(), nil, []logrecord.LogRecord{testLogRecord()})
+	updated, _ := model.handleBrowseKey(keyMsg("c"))
+	settings := updated.(Model)
+	updated, _ = settings.handleColumnsKey(keyMsg(" "))
+	settings = updated.(Model)
+	updated, _ = settings.handleColumnsKey(keyMsg("esc"))
+	cancelled := updated.(Model)
+
+	if !cancelled.columns[0].Visible {
+		t.Fatal("cancel should preserve timestamp visibility")
+	}
+}
+
+func TestColumnSettingsKeepsAtLeastOneColumnVisible(t *testing.T) {
+	model := NewModel(
+		t.Context(),
+		nil,
+		[]logrecord.LogRecord{testLogRecord()},
+		ModelOptions{SelectedColumns: []string{MessageColumn}},
+	)
+	updated, _ := model.handleBrowseKey(keyMsg("c"))
+	settings := updated.(Model)
+	updated, _ = settings.handleColumnsKey(keyMsg(" "))
+	settings = updated.(Model)
+
+	if !settings.columnDraft[0].Visible {
+		t.Fatal("the last visible column must not be hidden")
+	}
+}
+
 func keyMsg(key string) tea.KeyMsg {
 	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(key)}
 }
