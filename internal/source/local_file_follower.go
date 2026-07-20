@@ -3,7 +3,7 @@ package source
 import (
 	"bytes"
 	"context"
-	"errors"
+	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -18,78 +18,97 @@ const (
 )
 
 type FollowBatch struct {
-	Lines []byte
-	Reset bool
-	State FollowState
-	Err   error
+	Lines              []byte
+	OversizedLineCount int
+	Reset              bool
+	State              FollowState
+	Err                error
 }
 
 type LocalFileFollower struct {
-	path          string
-	interval      time.Duration
-	events        chan FollowBatch
-	close         sync.Once
-	initialOffset *int64
-}
+	path     string
+	interval time.Duration
+	events   chan FollowBatch
+	started  chan struct{}
+	done     chan struct{}
 
-func NewLocalFileFollowerAtOffset(path string, interval time.Duration, offset int64) *LocalFileFollower {
-	follower := NewLocalFileFollower(path, interval)
-	follower.initialOffset = &offset
-	return follower
+	file                *os.File
+	info                os.FileInfo
+	offset              int64
+	pending             []byte
+	discardingOversized bool
+	initialized         bool
+
+	closeEvents sync.Once
+	startRun    sync.Once
 }
 
 func NewLocalFileFollower(path string, interval time.Duration) *LocalFileFollower {
 	if interval <= 0 {
 		interval = 500 * time.Millisecond
 	}
-	return &LocalFileFollower{path: path, interval: interval, events: make(chan FollowBatch, 16)}
+	return &LocalFileFollower{
+		path: path, interval: interval,
+		events:  make(chan FollowBatch, 16),
+		started: make(chan struct{}),
+		done:    make(chan struct{}),
+	}
 }
 
 func (f *LocalFileFollower) Events() <-chan FollowBatch { return f.events }
 
+// InitialRead opens the input once and retains the descriptor for Run. Only
+// newline-terminated data is returned; a trailing fragment remains pending.
+func (f *LocalFileFollower) InitialRead(ctx context.Context) (FollowBatch, error) {
+	if f.initialized {
+		return FollowBatch{}, fmt.Errorf("follower already initialized")
+	}
+	if err := ctx.Err(); err != nil {
+		return FollowBatch{}, err
+	}
+	file, err := os.Open(f.path)
+	if err != nil {
+		return FollowBatch{}, fmt.Errorf("open followed file: %w", err)
+	}
+	info, err := file.Stat()
+	if err != nil {
+		_ = file.Close()
+		return FollowBatch{}, fmt.Errorf("stat followed file: %w", err)
+	}
+	f.file, f.info, f.initialized = file, info, true
+	data, err := f.readAvailable()
+	if err != nil {
+		_ = file.Close()
+		f.file = nil
+		return FollowBatch{}, err
+	}
+	lines, oversized := f.completeLines(data)
+	return FollowBatch{Lines: lines, OversizedLineCount: oversized, State: FollowLive}, nil
+}
+
 func (f *LocalFileFollower) Run(ctx context.Context) {
-	defer f.close.Do(func() { close(f.events) })
-	var file *os.File
-	var info os.FileInfo
-	var offset int64
-	var pending []byte
+	f.startRun.Do(func() { close(f.started) })
+	defer close(f.done)
+	defer f.closeEvents.Do(func() { close(f.events) })
+	defer func() {
+		if f.file != nil {
+			_ = f.file.Close()
+			f.file = nil
+		}
+	}()
+
+	if !f.initialized {
+		batch, err := f.InitialRead(ctx)
+		if err != nil {
+			f.send(ctx, FollowBatch{State: FollowRetrying, Err: err})
+		} else {
+			f.send(ctx, batch)
+		}
+	}
+
 	backoff := f.interval
-	resetOnOpen := false
-
-	openFile := func(atEnd bool) error {
-		opened, err := os.Open(f.path)
-		if err != nil {
-			return err
-		}
-		stat, err := opened.Stat()
-		if err != nil {
-			opened.Close()
-			return err
-		}
-		start := int64(0)
-		if atEnd {
-			start = stat.Size()
-		}
-		if f.initialOffset != nil {
-			start = min(*f.initialOffset, stat.Size())
-			f.initialOffset = nil
-		}
-		file, info, offset = opened, stat, start
-		pending = nil
-		return nil
-	}
-	if err := openFile(true); err != nil {
-		f.send(ctx, FollowBatch{State: FollowRetrying, Err: err})
-	} else {
-		defer func() {
-			if file != nil {
-				_ = file.Close()
-			}
-		}()
-		f.send(ctx, FollowBatch{State: FollowLive})
-	}
-
-	timer := time.NewTimer(backoff)
+	wasRetrying := false
+	timer := time.NewTimer(f.interval)
 	defer timer.Stop()
 	for {
 		select {
@@ -98,97 +117,165 @@ func (f *LocalFileFollower) Run(ctx context.Context) {
 		case <-timer.C:
 		}
 
-		if file == nil {
-			if err := openFile(!resetOnOpen); err != nil {
-				f.send(ctx, FollowBatch{State: FollowRetrying, Err: err})
+		retrying, err := f.poll(ctx)
+		if err != nil {
+			f.send(ctx, FollowBatch{State: FollowRetrying, Err: err})
+			retrying = true
+		}
+		if retrying {
+			if wasRetrying {
 				backoff = min(backoff*2, 5*time.Second)
-				timer.Reset(backoff)
-				continue
-			}
-			if resetOnOpen {
-				data, readErr := readFrom(file, 0)
-				if readErr != nil {
-					f.send(ctx, FollowBatch{State: FollowRetrying, Err: readErr})
-				} else {
-					offset = int64(len(data))
-					f.emitComplete(ctx, &pending, data, true)
-				}
-				resetOnOpen = false
 			} else {
+				backoff = f.interval
+			}
+		} else {
+			backoff = f.interval
+			if wasRetrying {
 				f.send(ctx, FollowBatch{State: FollowLive})
 			}
-			backoff = f.interval
-			timer.Reset(backoff)
-			continue
 		}
-
-		pathInfo, err := os.Stat(f.path)
-		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				_ = file.Close()
-				file = nil
-				resetOnOpen = true
-			}
-			f.send(ctx, FollowBatch{State: FollowRetrying, Err: err})
-			timer.Reset(backoff)
-			continue
-		}
-
-		reset := false
-		if !os.SameFile(info, pathInfo) {
-			if data, readErr := readFrom(file, offset); readErr == nil {
-				f.emitComplete(ctx, &pending, data, false)
-			}
-			_ = file.Close()
-			file, err = os.Open(f.path)
-			if err != nil {
-				file = nil
-				f.send(ctx, FollowBatch{State: FollowRetrying, Err: err})
-				timer.Reset(backoff)
-				continue
-			}
-			info = pathInfo
-			offset = 0
-			pending = nil
-			reset = true
-		} else if pathInfo.Size() < offset {
-			offset = 0
-			pending = nil
-			reset = true
-		}
-
-		data, err := readFrom(file, offset)
-		if err != nil {
-			f.send(ctx, FollowBatch{State: FollowRetrying, Err: err})
-			timer.Reset(backoff)
-			continue
-		}
-		offset += int64(len(data))
-		f.emitComplete(ctx, &pending, data, reset)
-		timer.Reset(f.interval)
+		wasRetrying = retrying
+		timer.Reset(backoff)
 	}
 }
 
-func readFrom(file *os.File, offset int64) ([]byte, error) {
-	if _, err := file.Seek(offset, io.SeekStart); err != nil {
-		return nil, err
-	}
-	return io.ReadAll(file)
+// Close waits for Run to release its file descriptor. The Run context must be
+// cancelled before calling Close.
+func (f *LocalFileFollower) Close() error {
+	<-f.started
+	<-f.done
+	return nil
 }
 
-func (f *LocalFileFollower) emitComplete(ctx context.Context, pending *[]byte, data []byte, reset bool) {
-	all := append(append((*pending)[:0:0], *pending...), data...)
+// Discard closes an initialized follower that has not been passed to Run.
+func (f *LocalFileFollower) Discard() error {
+	if f.file == nil {
+		return nil
+	}
+	err := f.file.Close()
+	f.file = nil
+	f.initialized = false
+	return err
+}
+
+func (f *LocalFileFollower) poll(ctx context.Context) (bool, error) {
+	pathInfo, err := os.Stat(f.path)
+	if err != nil {
+		return true, fmt.Errorf("stat followed path: %w", err)
+	}
+
+	if f.file == nil {
+		return f.openReplacement(ctx, pathInfo)
+	}
+	if !os.SameFile(f.info, pathInfo) {
+		// Drain bytes written to the renamed file before switching. The reset
+		// event follows this event, so the replacement remains the final state.
+		data, readErr := f.readAvailable()
+		if readErr != nil {
+			return true, readErr
+		}
+		if lines, oversized := f.completeLines(data); len(lines) > 0 || oversized > 0 {
+			f.send(ctx, FollowBatch{
+				Lines: lines, OversizedLineCount: oversized, State: FollowLive,
+			})
+		}
+		return f.openReplacement(ctx, pathInfo)
+	}
+	if pathInfo.Size() < f.offset {
+		f.offset = 0
+		f.pending = nil
+		f.discardingOversized = false
+		data, readErr := f.readAvailable()
+		if readErr != nil {
+			return true, readErr
+		}
+		lines, oversized := f.completeLines(data)
+		f.send(ctx, FollowBatch{
+			Lines: lines, OversizedLineCount: oversized, Reset: true, State: FollowLive,
+		})
+		return false, nil
+	}
+
+	data, err := f.readAvailable()
+	if err != nil {
+		return true, err
+	}
+	if lines, oversized := f.completeLines(data); len(lines) > 0 || oversized > 0 {
+		f.send(ctx, FollowBatch{
+			Lines: lines, OversizedLineCount: oversized, State: FollowLive,
+		})
+	}
+	return false, nil
+}
+
+func (f *LocalFileFollower) openReplacement(ctx context.Context, info os.FileInfo) (bool, error) {
+	replacement, err := os.Open(f.path)
+	if err != nil {
+		return true, fmt.Errorf("open replacement: %w", err)
+	}
+	if f.file != nil {
+		_ = f.file.Close()
+	}
+	f.file, f.info, f.offset, f.pending = replacement, info, 0, nil
+	f.discardingOversized = false
+	data, err := f.readAvailable()
+	if err != nil {
+		_ = replacement.Close()
+		f.file = nil
+		return true, err
+	}
+	lines, oversized := f.completeLines(data)
+	f.send(ctx, FollowBatch{
+		Lines: lines, OversizedLineCount: oversized, Reset: true, State: FollowLive,
+	})
+	return false, nil
+}
+
+func (f *LocalFileFollower) readAvailable() ([]byte, error) {
+	if f.file == nil {
+		return nil, fmt.Errorf("followed file is not open")
+	}
+	if _, err := f.file.Seek(f.offset, io.SeekStart); err != nil {
+		return nil, fmt.Errorf("seek followed file: %w", err)
+	}
+	data, err := io.ReadAll(f.file)
+	if err != nil {
+		return nil, fmt.Errorf("read followed file: %w", err)
+	}
+	f.offset += int64(len(data))
+	return data, nil
+}
+
+func (f *LocalFileFollower) completeLines(data []byte) ([]byte, int) {
+	const maxLineSize = 10 * 1024 * 1024
+	oversized := 0
+	if f.discardingOversized {
+		newline := bytes.IndexByte(data, '\n')
+		if newline < 0 {
+			return nil, 0
+		}
+		f.discardingOversized = false
+		oversized++
+		data = data[newline+1:]
+	}
+	all := append(append(f.pending[:0:0], f.pending...), data...)
 	last := bytes.LastIndexByte(all, '\n')
 	if last < 0 {
-		*pending = all
-		if reset {
-			f.send(ctx, FollowBatch{Reset: true, State: FollowLive})
+		if len(all) > maxLineSize {
+			f.pending = nil
+			f.discardingOversized = true
+		} else {
+			f.pending = all
 		}
-		return
+		return nil, oversized
 	}
 	complete := append([]byte(nil), all[:last+1]...)
-	*pending = append((*pending)[:0], all[last+1:]...)
-	f.send(ctx, FollowBatch{Lines: complete, Reset: reset, State: FollowLive})
+	f.pending = append(f.pending[:0], all[last+1:]...)
+	if len(f.pending) > maxLineSize {
+		f.pending = nil
+		f.discardingOversized = true
+	}
+	return complete, oversized
 }
 
 func (f *LocalFileFollower) send(ctx context.Context, event FollowBatch) {

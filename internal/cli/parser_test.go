@@ -96,6 +96,36 @@ func TestParseArgsWithJSONDisablesTUI(t *testing.T) {
 	}
 }
 
+func TestParseArgsFollowDefaultsOnOnlyForTUI(t *testing.T) {
+	var output bytes.Buffer
+	tuiConfig, err := ParseArgs([]string{"--file", "logs.jsonl"}, &output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !tuiConfig.Follow {
+		t.Fatal("TUI should follow by default")
+	}
+
+	tableConfig, err := ParseArgs([]string{"--file", "logs.jsonl", "--table"}, &output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tableConfig.Follow {
+		t.Fatal("table output must remain a snapshot")
+	}
+}
+
+func TestParseArgsRejectsExplicitFollowForSnapshotOutput(t *testing.T) {
+	for _, outputFlag := range []string{"--table", "--json"} {
+		var output bytes.Buffer
+		if _, err := ParseArgs([]string{
+			"--file", "logs.jsonl", outputFlag, "--follow=true",
+		}, &output); err == nil {
+			t.Fatalf("expected %s with --follow=true to fail", outputFlag)
+		}
+	}
+}
+
 func TestParseArgsRejectsConflictingOutputModes(t *testing.T) {
 	tests := [][]string{
 		{"--file", "logs.jsonl", "--table", "--json"},

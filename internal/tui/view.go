@@ -69,8 +69,12 @@ func (m Model) renderHeader() string {
 		m.total,
 		m.selectedIndex+1,
 	)
-	if m.state != "" {
-		text += fmt.Sprintf("| %s", m.state)
+	state := m.state
+	if m.loading {
+		state = "loading"
+	}
+	if state != "" {
+		text += fmt.Sprintf("| %s", state)
 	}
 	if m.parseErrors > 0 {
 		text += fmt.Sprintf(" | parse_errors=%d", m.parseErrors)

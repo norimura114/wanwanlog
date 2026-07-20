@@ -211,6 +211,78 @@ func TestLiveSearchPreservesSelectionUnlessItWasAtEnd(t *testing.T) {
 	}
 }
 
+func TestLiveSearchDoesNotMoveDetailPaneFromLastRecord(t *testing.T) {
+	records := []logrecord.LogRecord{{ID: "1"}, {ID: "2"}}
+	model := NewModel(t.Context(), nil, records)
+	model.mode = DetailMode
+	model.selectedIndex = 1
+	model.applySearchResult(SearchResult{
+		Records: append(records, logrecord.LogRecord{ID: "3"}), Total: 3,
+	})
+	if model.selectedIndex != 1 || model.selectedRecord().ID != "2" {
+		t.Fatalf("detail selection moved to index=%d id=%s", model.selectedIndex, model.selectedRecord().ID)
+	}
+}
+
+func TestFollowEventsCoalesceWhileSearchIsRunning(t *testing.T) {
+	model := NewModel(
+		t.Context(),
+		func(context.Context, string) (SearchResult, error) { return SearchResult{}, nil },
+		nil,
+	)
+	model.searching = true
+	model.loading = true
+	model.generation = 1
+
+	updated, _ := model.Update(FollowEvent{AddedCount: 1, State: "live"})
+	dirty := updated.(Model)
+	if !dirty.dirty || dirty.generation != 1 {
+		t.Fatalf("model after event = dirty:%v generation:%d", dirty.dirty, dirty.generation)
+	}
+
+	updated, cmd := dirty.Update(searchDoneMsg{
+		result: SearchResult{}, generation: 1,
+	})
+	restarted := updated.(Model)
+	if restarted.dirty || !restarted.searching || restarted.generation != 2 || cmd == nil {
+		t.Fatalf(
+			"coalesced search = dirty:%v searching:%v generation:%d cmd:%v",
+			restarted.dirty, restarted.searching, restarted.generation, cmd,
+		)
+	}
+}
+
+func TestStaleSearchGenerationCannotOverwriteRecords(t *testing.T) {
+	model := NewModel(t.Context(), nil, []logrecord.LogRecord{{ID: "current"}})
+	model.generation = 2
+	model.searching = true
+	updated, _ := model.Update(searchDoneMsg{
+		result:     SearchResult{Records: []logrecord.LogRecord{{ID: "stale"}}, Total: 1},
+		generation: 1,
+	})
+	got := updated.(Model)
+	if got.records[0].ID != "current" {
+		t.Fatalf("stale search replaced records with %q", got.records[0].ID)
+	}
+}
+
+func TestFollowEventAddsNewAttributeAsHiddenColumn(t *testing.T) {
+	model := NewModel(t.Context(), nil, nil)
+	updated, _ := model.Update(FollowEvent{
+		AttributeNames: []string{"@new.scalar"}, State: "live",
+	})
+	got := updated.(Model)
+	for _, column := range got.columns {
+		if column.Name == "@new.scalar" {
+			if column.Visible {
+				t.Fatal("new attribute column must be hidden")
+			}
+			return
+		}
+	}
+	t.Fatal("new attribute column was not added")
+}
+
 func keyMsg(key string) tea.KeyMsg {
 	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(key)}
 }

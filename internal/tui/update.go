@@ -330,7 +330,7 @@ func (m Model) startSearch() (Model, tea.Cmd) {
 func (m *Model) applySearchResult(result SearchResult) {
 	oldIndex := m.selectedIndex
 	oldID := ""
-	atEnd := len(m.records) > 0 && oldIndex == len(m.records)-1
+	atEnd := m.mode == BrowseMode && len(m.records) > 0 && oldIndex == len(m.records)-1
 	if record := m.selectedRecord(); record != nil {
 		oldID = record.ID
 	}

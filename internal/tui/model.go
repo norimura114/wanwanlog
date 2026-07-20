@@ -39,6 +39,7 @@ type ModelOptions struct {
 	InitialQuery    string
 	FollowEvents    <-chan FollowEvent
 	Live            bool
+	ParseErrorCount int
 }
 
 type Model struct {
@@ -115,6 +116,7 @@ func NewModel(ctx context.Context, search any, initialRecords []logrecord.LogRec
 		search:        searchFunc,
 		followEvents:  option.FollowEvents,
 		state:         state,
+		parseErrors:   option.ParseErrorCount,
 	}
 }
 
