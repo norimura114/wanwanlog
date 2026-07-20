@@ -2,6 +2,10 @@
 
 [日本語](README.md)
 
+```text
+(ᐡ ᐧ ﻌ ᐧ ᐡ) Dig through logs, wanwan!
+```
+
 A terminal-based log viewer for browsing and searching local JSON Lines files.
 It provides a Datadog-like search syntax, an interactive TUI, table output, and JSON output.
 
