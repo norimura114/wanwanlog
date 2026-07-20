@@ -2,17 +2,12 @@ package tui
 
 import (
 	"fmt"
-	"wanwanlog/internal/logrecord"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-type searchErrorMs struct {
-	err error
-}
-
 func (m Model) Init() tea.Cmd {
-	return nil
+	return waitFollowEvent(m.followEvents)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -25,16 +20,46 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		return m.handleKey(msg)
 	case searchDoneMsg:
+		if msg.generation != m.generation {
+			return m, nil
+		}
 		m.loading = false
+		m.searching = false
 		m.err = nil
-		m.records = msg.records
-		m.selectedIndex = 0
-		m.detailOffset = 0
+		m.applySearchResult(msg.result)
+		if m.dirty {
+			m.dirty = false
+			return m.startSearch()
+		}
 		return m, nil
 	case searchFailedMsg:
+		if msg.generation != m.generation {
+			return m, nil
+		}
 		m.loading = false
+		m.searching = false
 		m.err = msg.err
 		return m, nil
+	case FollowEvent:
+		m.state = msg.State
+		if msg.ParseErrorCount > 0 {
+			m.parseErrors += msg.ParseErrorCount
+		}
+		m.addAttributeNames(msg.AttributeNames)
+		if msg.Err != nil || msg.State == "live" {
+			m.err = msg.Err
+		}
+		cmds := []tea.Cmd{waitFollowEvent(m.followEvents)}
+		if msg.AddedCount > 0 || msg.Reset {
+			if m.searching {
+				m.dirty = true
+			} else {
+				var cmd tea.Cmd
+				m, cmd = m.startSearch()
+				cmds = append(cmds, cmd)
+			}
+		}
+		return m, tea.Batch(cmds...)
 	}
 
 	if m.mode == FilterMode {
@@ -197,16 +222,8 @@ func (m Model) handleFilterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		m.filterText = query
 		m.mode = BrowseMode
 		m.filterInput.Blur()
-		m.loading = true
 		m.err = nil
-
-		return m, func() tea.Msg {
-			records, err := m.search(m.ctx, query)
-			if err != nil {
-				return searchFailedMsg{err: err}
-			}
-			return searchDoneMsg{records: records}
-		}
+		return m.startSearch()
 	}
 
 	var cmd tea.Cmd
@@ -273,11 +290,80 @@ func (m Model) handleHelpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 type searchDoneMsg struct {
-	records []logrecord.LogRecord
+	result     SearchResult
+	generation uint64
 }
 
 type searchFailedMsg struct {
-	err error
+	err        error
+	generation uint64
+}
+
+func waitFollowEvent(events <-chan FollowEvent) tea.Cmd {
+	if events == nil {
+		return nil
+	}
+	return func() tea.Msg {
+		event, ok := <-events
+		if !ok {
+			return nil
+		}
+		return event
+	}
+}
+
+func (m Model) startSearch() (Model, tea.Cmd) {
+	m.loading = true
+	m.searching = true
+	m.generation++
+	generation := m.generation
+	query := m.filterText
+	return m, func() tea.Msg {
+		result, err := m.search(m.ctx, query)
+		if err != nil {
+			return searchFailedMsg{err: err, generation: generation}
+		}
+		return searchDoneMsg{result: result, generation: generation}
+	}
+}
+
+func (m *Model) applySearchResult(result SearchResult) {
+	oldIndex := m.selectedIndex
+	oldID := ""
+	atEnd := len(m.records) > 0 && oldIndex == len(m.records)-1
+	if record := m.selectedRecord(); record != nil {
+		oldID = record.ID
+	}
+	m.records, m.total = result.Records, result.Total
+	if len(m.records) == 0 {
+		m.selectedIndex = 0
+		return
+	}
+	if atEnd {
+		m.selectedIndex = len(m.records) - 1
+		return
+	}
+	for i := range m.records {
+		if m.records[i].ID == oldID {
+			m.selectedIndex = i
+			return
+		}
+	}
+	m.selectedIndex = min(oldIndex, len(m.records)-1)
+	m.clampDetailOffset()
+}
+
+func (m *Model) addAttributeNames(names []string) {
+	existing := make(map[string]bool, len(m.columns))
+	for _, column := range m.columns {
+		existing[column.Name] = true
+	}
+	for _, name := range names {
+		if !existing[name] {
+			m.columns = append(m.columns, Column{Name: name})
+			existing[name] = true
+		}
+	}
 }
 
 func (m Model) validateSearchFunc() error {

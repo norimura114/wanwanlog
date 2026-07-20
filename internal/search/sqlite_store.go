@@ -39,7 +39,8 @@ func OpenSQLiteStore(path string) (*SQLiteStore, error) {
 func (s *SQLiteStore) Init(ctx context.Context) error {
 	const createLogsTable = `
 CREATE TABLE IF NOT EXISTS logs (
-  id TEXT PRIMARY KEY,
+  sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+  id TEXT UNIQUE NOT NULL,
   timestamp TEXT,
   service TEXT,
   status TEXT,
@@ -91,7 +92,7 @@ func (s *SQLiteStore) InsertBatch(ctx context.Context, records []logrecord.LogRe
 	defer tx.Rollback()
 
 	const query = `
-INSERT INTO logs (
+INSERT OR IGNORE INTO logs (
   id,
   timestamp,
   service,
@@ -173,9 +174,9 @@ func (s *SQLiteStore) Search(ctx context.Context, query filter.SearchQuery) (fil
 		return filter.SearchResult{}, err
 	}
 
-	records, err := s.searchRecords(ctx, sqlQuery, limit, offset)
+	records, err := s.searchRecords(ctx, sqlQuery, limit, offset, query.Order)
 	if err != nil {
-		return filter.SearchResult{}, nil
+		return filter.SearchResult{}, err
 	}
 
 	return filter.SearchResult{
@@ -198,7 +199,7 @@ WHERE ` + query.Where
 	return total, nil
 }
 
-func (s *SQLiteStore) searchRecords(ctx context.Context, query filter.SQLQuery, limit int, offset int) ([]logrecord.LogRecord, error) {
+func (s *SQLiteStore) searchRecords(ctx context.Context, query filter.SQLQuery, limit int, offset int, order filter.SearchOrder) ([]logrecord.LogRecord, error) {
 	args := append([]any{}, query.Args...)
 	args = append(args, limit, offset)
 
@@ -213,10 +214,22 @@ SELECT
   raw
 FROM logs
 WHERE ` + query.Where + `
-ORDER BY timestamp ASC
+ORDER BY timestamp ASC, sequence ASC
 LIMIT ?
 OFFSET ?
 `
+	if order == filter.LatestWindow {
+		sqlText = `
+SELECT id, timestamp, service, status, message, attributes, raw
+FROM (
+  SELECT sequence, id, timestamp, service, status, message, attributes, raw
+  FROM logs
+  WHERE ` + query.Where + `
+  ORDER BY timestamp DESC, sequence DESC
+  LIMIT ? OFFSET ?
+)
+ORDER BY timestamp ASC, sequence ASC`
+	}
 
 	rows, err := s.db.QueryContext(ctx, sqlText, args...)
 	if err != nil {
@@ -240,6 +253,13 @@ OFFSET ?
 	}
 
 	return records, nil
+}
+
+func (s *SQLiteStore) DeleteAll(ctx context.Context) error {
+	if _, err := s.db.ExecContext(ctx, "DELETE FROM logs"); err != nil {
+		return fmt.Errorf("delete all logs: %w", err)
+	}
+	return nil
 }
 
 func scanLogRecord(rows *sql.Rows) (logrecord.LogRecord, error) {

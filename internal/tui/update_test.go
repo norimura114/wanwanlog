@@ -193,6 +193,24 @@ func TestColumnSettingsKeepsAtLeastOneColumnVisible(t *testing.T) {
 	}
 }
 
+func TestLiveSearchPreservesSelectionUnlessItWasAtEnd(t *testing.T) {
+	records := []logrecord.LogRecord{{ID: "1"}, {ID: "2"}}
+	model := NewModel(t.Context(), nil, records)
+	model.selectedIndex = 0
+	model.applySearchResult(SearchResult{Records: append(records, logrecord.LogRecord{ID: "3"}), Total: 3})
+	if model.selectedIndex != 0 {
+		t.Fatalf("selected index = %d, want 0", model.selectedIndex)
+	}
+
+	model.selectedIndex = len(model.records) - 1
+	model.applySearchResult(SearchResult{
+		Records: append(model.records, logrecord.LogRecord{ID: "4"}), Total: 4,
+	})
+	if model.selectedIndex != 3 {
+		t.Fatalf("selected index = %d, want new end 3", model.selectedIndex)
+	}
+}
+
 func keyMsg(key string) tea.KeyMsg {
 	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(key)}
 }

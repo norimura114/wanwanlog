@@ -63,11 +63,18 @@ func (m Model) renderHeader() string {
 		mode = "COLUMNS"
 	}
 
-	text := fmt.Sprintf(" wwlog | mode=%s | rows=%d | selected=%d ",
+	text := fmt.Sprintf(" wwlog | mode=%s | rows=%d/%d | selected=%d ",
 		mode,
 		len(m.records),
+		m.total,
 		m.selectedIndex+1,
 	)
+	if m.state != "" {
+		text += fmt.Sprintf("| %s", m.state)
+	}
+	if m.parseErrors > 0 {
+		text += fmt.Sprintf(" | parse_errors=%d", m.parseErrors)
+	}
 
 	return headerStyle.Width(m.width).Render(text)
 }

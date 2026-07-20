@@ -4,14 +4,12 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"wanwanlog/internal/app"
 	"wanwanlog/internal/app/usecase"
 	"wanwanlog/internal/cli"
-	"wanwanlog/internal/logrecord"
 	"wanwanlog/internal/output"
 	"wanwanlog/internal/parse"
 	"wanwanlog/internal/search"
-	"wanwanlog/internal/source"
-	"wanwanlog/internal/tui"
 	"wanwanlog/internal/version"
 )
 
@@ -51,18 +49,21 @@ func run() error {
 	}
 	defer store.Close()
 
-	uc := usecase.NewSearchLogsUseCase(
-		func(path string) source.Source {
-			return source.NewLocalFileSource(path)
-		},
-		parse.NewJSONLinesParser(),
-		store,
-	)
+	file, err := os.Open(config.FilePath)
+	if err != nil {
+		return fmt.Errorf("open input: %w", err)
+	}
+	loader := usecase.NewLoadLogs(parse.NewJSONLinesParser(), store, 1000)
+	if _, err := loader.Execute(ctx, file); err != nil {
+		file.Close()
+		return fmt.Errorf("load logs: %w", err)
+	}
+	_ = file.Close()
+	uc := usecase.NewSearchLogsUseCase(store)
 
 	result, err := uc.Execute(ctx, usecase.SearchLogsInput{
-		InputPath: config.FilePath,
-		Query:     config.Query,
-		Limit:     100,
+		Query: config.Query,
+		Limit: 100,
 	})
 	if err != nil {
 		return err
@@ -96,52 +97,26 @@ func runTUI(config cli.Config) error {
 	}
 	defer store.Close()
 
-	uc := usecase.NewSearchLogsUseCase(
-		func(path string) source.Source {
-			return source.NewLocalFileSource(path)
-		},
-		parse.NewJSONLinesParser(),
-		store,
-	)
-
-	searchFunc := func(ctx context.Context, query string) ([]logrecord.LogRecord, error) {
-		result, err := uc.Execute(ctx, usecase.SearchLogsInput{
-			InputPath: config.FilePath,
-			Query:     query,
-			Limit:     100,
-		})
-		if err != nil {
-			return nil, err
-		}
-		return result.Result.Records, nil
+	application := &app.TUIApplication{
+		Loader:   usecase.NewLoadLogs(parse.NewJSONLinesParser(), store, 1000),
+		Searcher: usecase.NewSearchLogsUseCase(store),
+		Store:    store,
 	}
-
-	initialRecords, err := searchFunc(ctx, config.Query)
-	if err != nil {
-		return err
-	}
-
-	attributeNames, err := collectAttributeNames(config.FilePath)
-	if err != nil {
-		return err
-	}
-
-	return tui.Run(ctx, searchFunc, initialRecords, tui.ModelOptions{
-		AttributeNames:  attributeNames,
-		SelectedColumns: config.Columns,
-		InitialQuery:    config.Query,
+	return application.Run(ctx, app.TUIConfig{
+		FilePath: config.FilePath, Query: config.Query, Columns: config.Columns, Follow: config.Follow,
 	})
 }
 
+// collectAttributeNames remains as a small compatibility helper for callers that
+// only need discovery. The TUI startup path collects these names during loading.
 func collectAttributeNames(path string) ([]string, error) {
-	reader, err := os.Open(path)
+	file, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("open input for column discovery: %w", err)
 	}
-	defer reader.Close()
-
-	collector := tui.NewAttributeNameCollector()
-	iterator := parse.NewJSONLinesParser().Parse(reader)
+	defer file.Close()
+	collector := usecase.NewAttributeNameCollector()
+	iterator := parse.NewJSONLinesParser().Parse(file)
 	for iterator.Next() {
 		result := iterator.Result()
 		if result.Err != nil {
@@ -152,7 +127,6 @@ func collectAttributeNames(path string) ([]string, error) {
 	if err := iterator.Err(); err != nil {
 		return nil, fmt.Errorf("discover attribute columns: %w", err)
 	}
-
 	return collector.Names(), nil
 }
 
@@ -172,6 +146,7 @@ Options:
   --columns  Comma-separated table or TUI browse columns
   --json     Output as JSON instead of starting the TUI
   --pretty   Pretty-print JSON output (default true)
+  --follow   Follow appended logs in TUI mode (default true)
   --version  Show version
   --help     Show help`)
 }

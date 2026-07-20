@@ -10,4 +10,5 @@ type Config struct {
 	ShowVersion   bool
 	JsonFormatter bool
 	Pretty        bool
+	Follow        bool
 }

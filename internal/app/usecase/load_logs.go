@@ -31,16 +31,24 @@ func NewLoadLogs(
 	}
 }
 
-type LoadLogsResult struct {
-	LoadedCount int
-	ErrorCount  int
+type LoadResult struct {
+	LoadedCount    int
+	ErrorCount     int
+	AttributeNames []string
+}
+
+type LoadLogsResult = LoadResult
+
+func (u *LoadLogs) Load(ctx context.Context, r io.Reader) (LoadResult, error) {
+	return u.Execute(ctx, r)
 }
 
 func (u *LoadLogs) Execute(
 	ctx context.Context,
 	r io.Reader,
-) (LoadLogsResult, error) {
-	result := LoadLogsResult{}
+) (LoadResult, error) {
+	result := LoadResult{}
+	attributes := NewAttributeNameCollector()
 	batch := make([]logrecord.LogRecord, 0, u.batchSize)
 	it := u.parser.Parse(r)
 
@@ -58,6 +66,7 @@ func (u *LoadLogs) Execute(
 		}
 
 		batch = append(batch, parsed.Log.Record)
+		attributes.Add(parsed.Log.Record.Attributes)
 
 		if len(batch) >= u.batchSize {
 			if err := u.store.InsertBatch(ctx, batch); err != nil {
@@ -81,5 +90,6 @@ func (u *LoadLogs) Execute(
 		result.LoadedCount += len(batch)
 	}
 
+	result.AttributeNames = attributes.Names()
 	return result, nil
 }

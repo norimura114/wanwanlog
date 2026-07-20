@@ -12,6 +12,8 @@ import (
 
 type JSONLinesParser struct{}
 
+const maxJSONLineSize = 10 * 1024 * 1024
+
 func NewJSONLinesParser() *JSONLinesParser {
 	return &JSONLinesParser{}
 }
@@ -19,8 +21,7 @@ func NewJSONLinesParser() *JSONLinesParser {
 func (p *JSONLinesParser) Parse(r io.Reader) Iterator {
 	scanner := bufio.NewScanner(r)
 
-	const maxLineSize = 10 * 1024 * 1024
-	scanner.Buffer(make([]byte, 64*1024), maxLineSize)
+	scanner.Buffer(make([]byte, 64*1024), 64*1024*1024)
 
 	return &JSONLinesIterator{
 		scanner: scanner,
@@ -41,6 +42,13 @@ func (it *JSONLinesIterator) Next() bool {
 
 		if line == "" {
 			continue
+		}
+		if len(line) > maxJSONLineSize {
+			it.result = ParseResult{
+				Line: it.lineNo,
+				Err:  fmt.Errorf("line %d: line exceeds %d bytes", it.lineNo, maxJSONLineSize),
+			}
+			return true
 		}
 
 		record, err := parseJSONLine(line)

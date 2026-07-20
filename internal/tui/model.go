@@ -17,12 +17,28 @@ const (
 	ColumnsMode
 )
 
-type SearchFunc func(ctx context.Context, query string) ([]logrecord.LogRecord, error)
+type SearchResult struct {
+	Records []logrecord.LogRecord
+	Total   int
+}
+
+type SearchFunc func(ctx context.Context, query string) (SearchResult, error)
+
+type FollowEvent struct {
+	AddedCount      int
+	ParseErrorCount int
+	Reset           bool
+	AttributeNames  []string
+	State           string
+	Err             error
+}
 
 type ModelOptions struct {
 	AttributeNames  []string
 	SelectedColumns []string
 	InitialQuery    string
+	FollowEvents    <-chan FollowEvent
+	Live            bool
 }
 
 type Model struct {
@@ -46,13 +62,20 @@ type Model struct {
 	width  int
 	height int
 
-	err     error
-	loading bool
+	err          error
+	loading      bool
+	total        int
+	state        string
+	parseErrors  int
+	followEvents <-chan FollowEvent
+	generation   uint64
+	searching    bool
+	dirty        bool
 
 	search SearchFunc
 }
 
-func NewModel(ctx context.Context, search SearchFunc, initialRecords []logrecord.LogRecord, options ...ModelOptions) Model {
+func NewModel(ctx context.Context, search any, initialRecords []logrecord.LogRecord, options ...ModelOptions) Model {
 	input := textinput.New()
 	input.Placeholder = "service:api status:error @http.status >= 400"
 	input.Prompt = "> "
@@ -63,6 +86,23 @@ func NewModel(ctx context.Context, search SearchFunc, initialRecords []logrecord
 		option = options[0]
 	}
 
+	var searchFunc SearchFunc
+	switch fn := search.(type) {
+	case SearchFunc:
+		searchFunc = fn
+	case func(context.Context, string) (SearchResult, error):
+		searchFunc = fn
+	case func(context.Context, string) ([]logrecord.LogRecord, error):
+		searchFunc = func(ctx context.Context, query string) (SearchResult, error) {
+			records, err := fn(ctx, query)
+			return SearchResult{Records: records, Total: len(records)}, err
+		}
+	case nil:
+	}
+	state := ""
+	if option.Live {
+		state = "live"
+	}
 	return Model{
 		ctx:           ctx,
 		mode:          BrowseMode,
@@ -71,7 +111,10 @@ func NewModel(ctx context.Context, search SearchFunc, initialRecords []logrecord
 		records:       initialRecords,
 		selectedIndex: 0,
 		columns:       NewColumns(option.AttributeNames, option.SelectedColumns),
-		search:        search,
+		total:         len(initialRecords),
+		search:        searchFunc,
+		followEvents:  option.FollowEvents,
+		state:         state,
 	}
 }
 

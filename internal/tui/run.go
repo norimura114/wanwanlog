@@ -2,7 +2,6 @@ package tui
 
 import (
 	"context"
-	"wanwanlog/internal/logrecord"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -10,10 +9,11 @@ import (
 func Run(
 	ctx context.Context,
 	search SearchFunc,
-	initialRecords []logrecord.LogRecord,
+	initial SearchResult,
 	options ModelOptions,
 ) error {
-	model := NewModel(ctx, search, initialRecords, options)
+	model := NewModel(ctx, search, initial.Records, options)
+	model.total = initial.Total
 
 	program := tea.NewProgram(
 		model,

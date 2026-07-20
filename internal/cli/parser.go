@@ -8,7 +8,7 @@ import (
 )
 
 func ParseArgs(args []string, output io.Writer) (Config, error) {
-	config := Config{TUI: true}
+	config := Config{TUI: true, Follow: true}
 	var columns string
 
 	fs := flag.NewFlagSet("wwlog", flag.ContinueOnError)
@@ -23,6 +23,7 @@ func ParseArgs(args []string, output io.Writer) (Config, error) {
 	fs.BoolVar(&config.Pretty, "pretty", true, "Pretty format")
 	fs.BoolVar(&config.ShowVersion, "version", false, "Show version")
 	fs.BoolVar(&config.ShowHelp, "help", false, "Show help")
+	fs.BoolVar(&config.Follow, "follow", true, "Follow appended logs in TUI mode")
 
 	if err := fs.Parse(args); err != nil {
 		return Config{}, err
@@ -30,12 +31,15 @@ func ParseArgs(args []string, output io.Writer) (Config, error) {
 
 	columnsSet := false
 	tuiSet := false
+	followSet := false
 	fs.Visit(func(flag *flag.Flag) {
 		switch flag.Name {
 		case "columns":
 			columnsSet = true
 		case "tui":
 			tuiSet = true
+		case "follow":
+			followSet = true
 		}
 	})
 
@@ -59,6 +63,10 @@ func ParseArgs(args []string, output io.Writer) (Config, error) {
 	}
 	if config.Table || config.JsonFormatter {
 		config.TUI = false
+		if followSet && config.Follow {
+			return Config{}, fmt.Errorf("--follow=true cannot be used with --table or --json")
+		}
+		config.Follow = false
 	}
 
 	if columnsSet {
