@@ -16,7 +16,7 @@ func ParseArgs(args []string, output io.Writer) (Config, error) {
 
 	fs.StringVar(&config.FilePath, "file", "", "Path to a JSON Lines log file")
 	fs.StringVar(&config.Query, "query", "", "Search query")
-	fs.StringVar(&columns, "columns", "", "Comma-separated TUI browse columns")
+	fs.StringVar(&columns, "columns", "", "Comma-separated output columns")
 	fs.BoolVar(&config.TUI, "tui", false, "Start in TUI mode")
 	fs.BoolVar(&config.JsonFormatter, "json", false, "Output as json")
 	fs.BoolVar(&config.Pretty, "pretty", true, "Pretty format")
@@ -47,10 +47,6 @@ func ParseArgs(args []string, output io.Writer) (Config, error) {
 	}
 
 	if columnsSet {
-		if !config.TUI {
-			return Config{}, fmt.Errorf("--columns requires --tui")
-		}
-
 		parsedColumns, err := parseColumns(columns)
 		if err != nil {
 			return Config{}, err

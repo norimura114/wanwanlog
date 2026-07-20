@@ -8,17 +8,20 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"wanwanlog/internal/logrecord"
 )
 
 type TableFormatter struct {
 	MaxMessageWidth    int
 	MaxAttributesWidth int
+	Columns            []string
 }
 
-func NewTableFormatter() *TableFormatter {
+func NewTableFormatter(columns ...string) *TableFormatter {
 	return &TableFormatter{
 		MaxMessageWidth:    40,
 		MaxAttributesWidth: 40,
+		Columns:            append([]string(nil), columns...),
 	}
 }
 
@@ -44,6 +47,10 @@ func (f *TableFormatter) Write(ctx context.Context, w io.Writer, out SearchOutpu
 	if len(out.Results) == 0 {
 		_, err := fmt.Fprintln(w, "No results")
 		return err
+	}
+
+	if len(f.Columns) > 0 {
+		return f.writeSelectedColumns(ctx, w, out.Results)
 	}
 
 	if _, err := fmt.Fprintf(
@@ -83,12 +90,107 @@ func (f *TableFormatter) Write(ctx context.Context, w io.Writer, out SearchOutpu
 	return err
 }
 
+func (f *TableFormatter) writeSelectedColumns(
+	ctx context.Context,
+	w io.Writer,
+	records []logrecord.LogRecord,
+) error {
+	widths := make([]int, len(f.Columns))
+	for i, column := range f.Columns {
+		widths[i] = len([]rune(column))
+		for _, record := range records {
+			width := len([]rune(f.columnValue(column, record)))
+			if width > widths[i] {
+				widths[i] = width
+			}
+		}
+
+		maxWidth := f.MaxAttributesWidth
+		if column == "message" {
+			maxWidth = f.MaxMessageWidth
+		}
+		if widths[i] > maxWidth {
+			widths[i] = maxWidth
+		}
+	}
+
+	headers := make([]string, len(f.Columns))
+	for i, column := range f.Columns {
+		headers[i] = strings.ToUpper(column)
+	}
+	if _, err := fmt.Fprintln(w, formatSelectedRow(headers, widths)); err != nil {
+		return err
+	}
+
+	for _, record := range records {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		values := make([]string, len(f.Columns))
+		for i, column := range f.Columns {
+			values[i] = f.columnValue(column, record)
+		}
+		if _, err := fmt.Fprintln(w, formatSelectedRow(values, widths)); err != nil {
+			return err
+		}
+	}
+
+	_, err := fmt.Fprintf(w, "\nShowing %d results\n", len(records))
+	return err
+}
+
+func (f *TableFormatter) columnValue(column string, record logrecord.LogRecord) string {
+	switch column {
+	case "timestamp":
+		return formatTime(record.Timestamp)
+	case "status":
+		return record.Status
+	case "service":
+		return record.Service
+	case "message":
+		return truncateOneLine(record.Message, f.MaxMessageWidth)
+	}
+
+	value, ok := nestedAttribute(record.Attributes, strings.TrimPrefix(column, "@"))
+	if !ok {
+		return ""
+	}
+	return truncateOneLine(formatAttributeValue(value), f.MaxAttributesWidth)
+}
+
+func nestedAttribute(attributes map[string]any, path string) (any, bool) {
+	var current any = attributes
+	for _, part := range strings.Split(path, ".") {
+		object, ok := current.(map[string]any)
+		if !ok {
+			return nil, false
+		}
+		current, ok = object[part]
+		if !ok {
+			return nil, false
+		}
+	}
+	return current, true
+}
+
+func formatSelectedRow(values []string, widths []int) string {
+	cells := make([]string, len(values))
+	for i, value := range values {
+		value = truncateOneLine(value, widths[i])
+		cells[i] = fmt.Sprintf("%-*s", widths[i], value)
+	}
+	return strings.TrimRight(strings.Join(cells, "  "), " ")
+}
+
 func formatTime(t time.Time) string {
 	if t.IsZero() {
 		return "-"
 	}
 
-	return t.Local().Format("2006-01-012 15:04:05")
+	return t.Local().Format("2006-01-02 15:04:05")
 }
 
 func formatStatus(status string) string {

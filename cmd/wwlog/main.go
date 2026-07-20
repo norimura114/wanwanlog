@@ -73,7 +73,7 @@ func run() error {
 	if config.JsonFormatter {
 		formatter = output.NewJSONFormatter(config.Pretty)
 	} else {
-		formatter = output.NewTableFormatter()
+		formatter = output.NewTableFormatter(config.Columns...)
 	}
 
 	if err := formatter.Write(ctx, os.Stdout, output.SearchOutput{
@@ -165,7 +165,7 @@ Options:
   --file     Path to a JSON Lines log file
   --query    Search query
   --tui      Start in TUI mode
-  --columns  Comma-separated TUI browse columns
+  --columns  Comma-separated table or TUI browse columns
   --json     Output as json
   --pretty   Pretty format
   --version  Show version
