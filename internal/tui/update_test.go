@@ -1,11 +1,25 @@
 package tui
 
 import (
+	"context"
 	"testing"
 	"wanwanlog/internal/logrecord"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
+
+func TestNewModelKeepsInitialQuery(t *testing.T) {
+	model := NewModel(
+		context.Background(),
+		func(context.Context, string) ([]logrecord.LogRecord, error) { return nil, nil },
+		nil,
+		ModelOptions{InitialQuery: "status:error"},
+	)
+
+	if model.filterText != "status:error" {
+		t.Fatalf("filterText = %q, want status:error", model.filterText)
+	}
+}
 
 func TestDetailScrollStopsWhenLastLineReachesViewportBottom(t *testing.T) {
 	model := NewModel(t.Context(), nil, []logrecord.LogRecord{testLogRecord()})

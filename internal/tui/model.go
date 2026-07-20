@@ -22,6 +22,7 @@ type SearchFunc func(ctx context.Context, query string) ([]logrecord.LogRecord, 
 type ModelOptions struct {
 	AttributeNames  []string
 	SelectedColumns []string
+	InitialQuery    string
 }
 
 type Model struct {
@@ -65,6 +66,7 @@ func NewModel(ctx context.Context, search SearchFunc, initialRecords []logrecord
 		ctx:           ctx,
 		mode:          BrowseMode,
 		filterInput:   input,
+		filterText:    option.InitialQuery,
 		records:       initialRecords,
 		selectedIndex: 0,
 		columns:       NewColumns(option.AttributeNames, option.SelectedColumns),

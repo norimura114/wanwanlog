@@ -43,15 +43,18 @@ The command package is the composition root. It parses CLI arguments, creates co
 Current user-facing flags:
 
 - `--file`: JSON Lines input file path.
-- `--query`: filter expression.
-- `--tui`: start the Bubble Tea TUI.
+- `--query`: initial TUI filter or non-interactive filter expression.
+- `--tui`: explicitly start the Bubble Tea TUI, which is the default mode.
+- `--table`: print a table instead of starting the TUI.
 - `--columns`: comma-separated table columns or initial TUI browse columns.
 - `--json`: output as JSON instead of table.
 - `--pretty`: pretty-print JSON output.
 - `--version`: print version.
 - `--help`: print help.
 
-When `--tui` is set, the command loads logs into the in-memory store and starts the Bubble Tea interface instead of printing formatted search results.
+By default, the command loads logs into the in-memory store and starts the
+Bubble Tea interface. `--table` and `--json` select non-interactive output
+instead. The output mode flags are mutually exclusive.
 
 ### `internal/cli`
 
@@ -216,7 +219,9 @@ The TUI package implements a Bubble Tea model with these modes:
 - `HelpMode`: show key bindings.
 - `ColumnsMode`: choose, show or hide, and reorder browse columns.
 
-The TUI receives a `SearchFunc`, so UI state management is separated from log loading and query execution. The command starts the TUI when `--tui` is passed.
+The TUI receives a `SearchFunc`, so UI state management is separated from log
+loading and query execution. It is the default command mode. When `--query` is
+provided, the TUI opens with that filter already applied.
 
 The browse list supports the built-in `timestamp`, `status`, `service`, and
 `message` columns plus attribute paths such as `@http.status`. Available

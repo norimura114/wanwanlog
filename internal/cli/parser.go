@@ -8,7 +8,7 @@ import (
 )
 
 func ParseArgs(args []string, output io.Writer) (Config, error) {
-	var config Config
+	config := Config{TUI: true}
 	var columns string
 
 	fs := flag.NewFlagSet("wwlog", flag.ContinueOnError)
@@ -17,7 +17,8 @@ func ParseArgs(args []string, output io.Writer) (Config, error) {
 	fs.StringVar(&config.FilePath, "file", "", "Path to a JSON Lines log file")
 	fs.StringVar(&config.Query, "query", "", "Search query")
 	fs.StringVar(&columns, "columns", "", "Comma-separated output columns")
-	fs.BoolVar(&config.TUI, "tui", false, "Start in TUI mode")
+	fs.BoolVar(&config.TUI, "tui", true, "Start in TUI mode (default)")
+	fs.BoolVar(&config.Table, "table", false, "Output as a table")
 	fs.BoolVar(&config.JsonFormatter, "json", false, "Output as json")
 	fs.BoolVar(&config.Pretty, "pretty", true, "Pretty format")
 	fs.BoolVar(&config.ShowVersion, "version", false, "Show version")
@@ -28,9 +29,13 @@ func ParseArgs(args []string, output io.Writer) (Config, error) {
 	}
 
 	columnsSet := false
+	tuiSet := false
 	fs.Visit(func(flag *flag.Flag) {
-		if flag.Name == "columns" {
+		switch flag.Name {
+		case "columns":
 			columnsSet = true
+		case "tui":
+			tuiSet = true
 		}
 	})
 
@@ -44,6 +49,16 @@ func ParseArgs(args []string, output io.Writer) (Config, error) {
 
 	if config.FilePath == "" {
 		return Config{}, fmt.Errorf("--file is required")
+	}
+
+	if config.Table && config.JsonFormatter {
+		return Config{}, fmt.Errorf("--table and --json cannot be used together")
+	}
+	if tuiSet && config.TUI && (config.Table || config.JsonFormatter) {
+		return Config{}, fmt.Errorf("--tui cannot be used with --table or --json")
+	}
+	if config.Table || config.JsonFormatter {
+		config.TUI = false
 	}
 
 	if columnsSet {

@@ -116,7 +116,7 @@ func runTUI(config cli.Config) error {
 		return result.Result.Records, nil
 	}
 
-	initialRecords, err := searchFunc(ctx, "")
+	initialRecords, err := searchFunc(ctx, config.Query)
 	if err != nil {
 		return err
 	}
@@ -129,6 +129,7 @@ func runTUI(config cli.Config) error {
 	return tui.Run(ctx, searchFunc, initialRecords, tui.ModelOptions{
 		AttributeNames:  attributeNames,
 		SelectedColumns: config.Columns,
+		InitialQuery:    config.Query,
 	})
 }
 
@@ -159,15 +160,18 @@ func printHelp() {
 	fmt.Println(`wwlog - Datadog like log viewer for local JSON Lines file
 
 Usage:
-  wwlog --file <path> [--query <query>] [--tui] [--columns <columns>]
+  wwlog --file <path> [--query <query>] [--columns <columns>]
+  wwlog --file <path> --table [--query <query>] [--columns <columns>]
+  wwlog --file <path> --json [--query <query>] [--pretty=false]
 
 Options:
   --file     Path to a JSON Lines log file
-  --query    Search query
-  --tui      Start in TUI mode
+  --query    Initial TUI filter or output search query
+  --tui      Start in TUI mode (default)
+  --table    Output as a table instead of starting the TUI
   --columns  Comma-separated table or TUI browse columns
-  --json     Output as json
-  --pretty   Pretty format
+  --json     Output as JSON instead of starting the TUI
+  --pretty   Pretty-print JSON output (default true)
   --version  Show version
   --help     Show help`)
 }
