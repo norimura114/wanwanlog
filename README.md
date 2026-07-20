@@ -1,12 +1,19 @@
 # wanwanlog
 
+[English](README.en.md)
+
 ローカルの JSON Lines ログを、ターミナル上で閲覧・検索するためのログビューアです。
 Datadog に近い検索構文、対話的な TUI、テーブル出力、JSON 出力を提供します。
+
+> [!WARNING]
+> このアプリは ChatGPT を利用したバイブコーディングによって作成されています。
+> 十分な品質・安全性・信頼性は保証されていません。重要なデータや本番環境での
+> 利用は避け、自己責任で使用してください。
 
 > [!NOTE]
 > 現在はアルファ版です。オプションや検索構文は今後変更される可能性があります。
 
-## Features
+## 機能
 
 - ローカルの JSON Lines ファイルを直接読み込み
 - Bubble Tea を使用した対話的なログ閲覧
@@ -15,7 +22,7 @@ Datadog に近い検索構文、対話的な TUI、テーブル出力、JSON 出
 - テーブルまたは JSON による非対話出力
 - 入力データを外部サービスへ送信しないローカル処理
 
-## Installation
+## インストール
 
 [Releases](https://github.com/norimura114/wanwanlog/releases) から、お使いの
 OS・アーキテクチャ向けのアーカイブをダウンロードしてください。
@@ -28,9 +35,9 @@ cd wanwanlog
 go build -o wwlog ./cmd/wwlog
 ```
 
-## Usage
+## 使い方
 
-`--file`に JSON Lines ファイルを指定すると、デフォルトで TUI が起動します。
+`--file` に JSON Lines ファイルを指定すると、デフォルトで TUI が起動します。
 
 ```bash
 wwlog --file app.jsonl
@@ -45,9 +52,9 @@ wwlog \
   --columns 'timestamp,status,service,message'
 ```
 
-### Table output
+### テーブル出力
 
-スクリプトやパイプラインから利用する場合は`--table`を指定します。
+スクリプトやパイプラインから利用する場合は `--table` を指定します。
 
 ```bash
 wwlog \
@@ -57,7 +64,7 @@ wwlog \
   --columns 'timestamp,service,@http.status_code,message'
 ```
 
-### JSON output
+### JSON 出力
 
 ```bash
 wwlog --file app.jsonl --json --query 'status:error'
@@ -69,7 +76,7 @@ wwlog --file app.jsonl --json --query 'status:error'
 wwlog --file app.jsonl --json --pretty=false
 ```
 
-### Options
+### オプション
 
 ```text
 --file <path>       JSON Linesファイルのパス（必須）
@@ -83,9 +90,9 @@ wwlog --file app.jsonl --json --pretty=false
 --help              ヘルプを表示
 ```
 
-## Search syntax
+## 検索構文
 
-隣接する条件は`AND`として扱われます。
+隣接する条件は `AND` として扱われます。
 
 ```text
 service:api status:error
@@ -102,12 +109,12 @@ timeout                     messageのキーワード検索
 -status:info                否定
 ```
 
-組み込みフィールドは`timestamp`、`service`、`status`、`message`です。
-属性は`@http.status_code`のようなドット区切りのパスで参照します。
+組み込みフィールドは `timestamp`、`service`、`status`、`message` です。
+属性は `@http.status_code` のようなドット区切りのパスで参照します。
 
-`OR`と括弧を使った条件は、現在未対応です。
+`OR` と括弧を使った条件は、現在未対応です。
 
-## Input format
+## 入力形式
 
 1行に1つの JSON オブジェクトを記述します。
 
@@ -115,14 +122,14 @@ timeout                     messageのキーワード検索
 {"timestamp":"2026-05-10T12:00:00Z","service":"api","status":"error","message":"request timeout","http":{"status_code":504,"duration_ms":3000}}
 ```
 
-`timestamp`、`service`、`status`、`message`は一覧表示用の組み込みフィールドとして
+`timestamp`、`service`、`status`、`message` は一覧表示用の組み込みフィールドとして
 扱われます。それ以外の値も属性として保持され、検索やカラム表示に利用できます。
 ネストしたオブジェクトにも対応しています。
 
 空行は無視され、1行の最大サイズは10 MiBです。起動ごとにファイル全体を
-インメモリのSQLiteデータベースへ読み込みます。
+インメモリの SQLite データベースへ読み込みます。
 
-## TUI key bindings
+## TUI キーバインド
 
 ```text
 j / ↓       下へ移動
@@ -136,7 +143,7 @@ c           表示カラムを編集
 q           終了
 ```
 
-## Development
+## 開発
 
 ```bash
 go test ./...
@@ -165,9 +172,9 @@ go run ./cmd/gen-tetdata \
 
 詳細な実装については[設計ドキュメント](docs/design.md)を参照してください。
 
-リリースはRelease PleaseとGoReleaserで自動化しています。コミットメッセージには
+リリースは Release Please と GoReleaser で自動化しています。コミットメッセージには
 [Conventional Commits](https://www.conventionalcommits.org/)を使用します。
 
-## License
+## ライセンス
 
 [MIT License](LICENSE)
