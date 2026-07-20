@@ -73,6 +73,24 @@ func TestOpeningAnotherDetailPreservesAndClampsScrollOffset(t *testing.T) {
 	}
 }
 
+func TestHLKeysSwitchPanes(t *testing.T) {
+	model := NewModel(t.Context(), nil, []logrecord.LogRecord{testLogRecord()})
+	model.width = 80
+	model.height = 24
+
+	updated, _ := model.handleBrowseKey(keyMsg("l"))
+	detail := updated.(Model)
+	if detail.mode != DetailMode {
+		t.Fatalf("mode after l = %v, want DetailMode", detail.mode)
+	}
+
+	updated, _ = detail.handleDetailKey(keyMsg("h"))
+	browse := updated.(Model)
+	if browse.mode != BrowseMode {
+		t.Fatalf("mode after h = %v, want BrowseMode", browse.mode)
+	}
+}
+
 func keyMsg(key string) tea.KeyMsg {
 	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(key)}
 }
