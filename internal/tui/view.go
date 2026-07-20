@@ -170,7 +170,7 @@ func (m Model) renderDetail(width int, height int) string {
 		return "No selected log"
 	}
 
-	lines := formatDetail(*record, width)
+	lines := formatDetail(*record, width, m.detailRaw)
 	offset := min(m.detailOffset, max(0, len(lines)-height))
 
 	end := offset + height
@@ -196,7 +196,7 @@ func (m Model) renderFooter() string {
 	case FilterMode:
 		return footerStyle.Width(m.width).Render(" enter search | esc cancel ")
 	case DetailMode:
-		return footerStyle.Width(m.width).Render(" j/k scroll | h browse | esc back ")
+		return footerStyle.Width(m.width).Render(" j/k scroll | r attributes/raw | h browse | esc back ")
 	case ColumnsMode:
 		return footerStyle.Width(m.width).Render(" j/k select | space toggle | J/K reorder | enter apply | esc cancel ")
 	default:
@@ -218,6 +218,7 @@ func (m Model) renderHelp() string {
 		"G            last log",
 		"h / l        switch pane",
 		"d            detail pane",
+		"r            toggle attributes/raw in detail",
 		"c            column settings",
 		"?            toggle help",
 	}, "\n")
@@ -329,20 +330,22 @@ func sum(values []int) int {
 	return total
 }
 
-func formatDetail(record logrecord.LogRecord, width int) []string {
+func formatDetail(record logrecord.LogRecord, width int, raw bool) []string {
 	lines := []string{
 		"timestamp: " + record.Timestamp.Format("2006-01-02T15:04:05Z07:00"),
 		"service:   " + record.Service,
 		"status:    " + record.Status,
 		"message:   " + record.Message,
 		"",
-		"attributes:",
 	}
 
-	lines = append(lines, indentLines(formatJSON(record.Attributes), "  ")...)
-
-	lines = append(lines, "", "raw:")
-	lines = append(lines, indentLines(formatRaw(record.Raw), "  ")...)
+	if raw {
+		lines = append(lines, "raw:")
+		lines = append(lines, indentLines(formatRaw(record.Raw), "  ")...)
+	} else {
+		lines = append(lines, "attributes:")
+		lines = append(lines, indentLines(formatJSON(record.Attributes), "  ")...)
+	}
 
 	return wrapLines(lines, width)
 }

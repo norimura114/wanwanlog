@@ -36,6 +36,7 @@ type Model struct {
 	records       []logrecord.LogRecord
 	selectedIndex int
 	detailOffset  int
+	detailRaw     bool
 
 	columns      []Column
 	columnDraft  []Column
