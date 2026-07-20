@@ -94,7 +94,7 @@ func (m Model) handleBrowseKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case "d", "enter":
+	case "d", "enter", "l":
 		m.mode = DetailMode
 		m.clampDetailOffset()
 		return m, nil
@@ -138,7 +138,7 @@ func (m Model) handleFilterKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 func (m Model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "esc", "q":
+	case "esc", "q", "h":
 		m.mode = BrowseMode
 		return m, nil
 

@@ -173,11 +173,11 @@ func (m Model) renderFooter() string {
 
 	switch m.mode {
 	case BrowseMode:
-		return footerStyle.Width(m.width).Render(" / filter | j/k move | d detail | ? help | q quit ")
+		return footerStyle.Width(m.width).Render(" / filter | j/k move | l detail | ? help | q quit ")
 	case FilterMode:
 		return footerStyle.Width(m.width).Render(" enter search | esc cancel ")
 	case DetailMode:
-		return footerStyle.Width(m.width).Render(" j/k scroll | esc back ")
+		return footerStyle.Width(m.width).Render(" j/k scroll | h browse | esc back ")
 	default:
 		return footerStyle.Width(m.width).Render("")
 	}
@@ -195,7 +195,8 @@ func (m Model) renderHelp() string {
 		"k / up       previous log",
 		"g            first log",
 		"G            last log",
-		"d            detail mode",
+		"h / l        switch pane",
+		"d            detail pane",
 		"?            toggle help",
 	}, "\n")
 
