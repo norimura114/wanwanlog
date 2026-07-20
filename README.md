@@ -152,6 +152,17 @@ go run ./cmd/gen-tetdata \
   --seed 1
 ```
 
+追記読み込みを手動確認する場合は、別のターミナルから一定間隔でログを追記できます。
+`--count 0` は Ctrl+C まで継続します。
+
+```bash
+go run ./cmd/gen-tetdata \
+  --output testdata/logs.jsonl \
+  --follow \
+  --count 0 \
+  --interval 500ms
+```
+
 詳細な実装については[設計ドキュメント](docs/design.md)を参照してください。
 
 リリースはRelease PleaseとGoReleaserで自動化しています。コミットメッセージには
