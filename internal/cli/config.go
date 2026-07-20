@@ -3,6 +3,7 @@ package cli
 type Config struct {
 	FilePath      string
 	Query         string
+	Columns       []string
 	TUI           bool
 	ShowHelp      bool
 	ShowVersion   bool

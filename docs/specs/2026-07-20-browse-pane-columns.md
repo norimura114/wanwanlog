@@ -35,11 +35,13 @@ TUI の browse pane では、現在 `timestamp`、`status`、`service`、`messag
 - `service`
 - `message`
 
-attribute の選択候補は、入力ファイル全体に登場するキーの和集合から生成する。ネストしたキーは `@http.status` のようなドット表記で扱う。
+attribute の選択候補は、入力ファイル全体にスカラー値として登場するキーの和集合から生成する。ネストしたキーは `@http.status` のようなドット表記で扱う。
 
 あるレコードに選択した attribute が存在しない場合、そのセルは空欄で表示する。
 
-attribute の値が配列の場合は `[array]`、オブジェクトの場合は `{object}` と表示し、内容は一覧上では展開しない。配列やオブジェクトの attribute もカラムとして選択できる。
+配列またはオブジェクトとしてのみ登場する attribute は、TUI の設定画面の候補には表示しない。オブジェクト配下のスカラー値は候補に含める。同じキーが別のレコードでスカラー値としても登場する場合は候補に含める。
+
+CLI の `--columns` で配列またはオブジェクトの attribute が明示指定された場合は、それぞれ `[array]`、`{object}` と表示し、内容は一覧上では展開しない。
 
 ## TUI Configuration Screen
 
@@ -93,4 +95,3 @@ wwlog --file app.jsonl --tui \
 - timestamp の表示形式の変更
 - detail pane のカスタマイズ
 - 非 TUI のテーブル出力のカスタマイズ
-

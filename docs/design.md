@@ -45,6 +45,7 @@ Current user-facing flags:
 - `--file`: JSON Lines input file path.
 - `--query`: filter expression.
 - `--tui`: start the Bubble Tea TUI.
+- `--columns`: comma-separated initial browse columns; valid only with `--tui`.
 - `--json`: output as JSON instead of table.
 - `--pretty`: pretty-print JSON output.
 - `--version`: print version.
@@ -210,8 +211,16 @@ The TUI package implements a Bubble Tea model with these modes:
 - `FilterMode`: edit and execute a filter query.
 - `DetailMode`: inspect the selected record.
 - `HelpMode`: show key bindings.
+- `ColumnsMode`: choose, show or hide, and reorder browse columns.
 
 The TUI receives a `SearchFunc`, so UI state management is separated from log loading and query execution. The command starts the TUI when `--tui` is passed.
+
+The browse list supports the built-in `timestamp`, `status`, `service`, and
+`message` columns plus attribute paths such as `@http.status`. Available
+attribute paths are discovered from the full input file when the TUI starts.
+Attributes that only contain arrays or objects are omitted from the column
+settings; nested scalar paths remain available.
+Column configuration is kept only for the lifetime of the TUI process.
 
 ## Filter Grammar
 

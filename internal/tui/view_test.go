@@ -63,6 +63,50 @@ func TestPaneStylesHighlightThePaneControlledByCurrentMode(t *testing.T) {
 	}
 }
 
+func TestBrowseListRendersHeaderAndAttributeColumns(t *testing.T) {
+	model := NewModel(
+		t.Context(),
+		nil,
+		[]logrecord.LogRecord{testLogRecord()},
+		ModelOptions{
+			AttributeNames:  []string{"@http", "@http.status_code", "@missing"},
+			SelectedColumns: []string{"status", "@http", "@http.status_code", "@missing"},
+		},
+	)
+
+	list := model.renderList(80, 10)
+	lines := strings.Split(list, "\n")
+	if !strings.Contains(lines[0], "status") || !strings.Contains(lines[0], "@http.status_code") {
+		t.Fatalf("header = %q", lines[0])
+	}
+	if !strings.Contains(lines[1], "{object}") || !strings.Contains(lines[1], "204") {
+		t.Fatalf("record row = %q", lines[1])
+	}
+}
+
+func TestColumnSettingsViewDoesNotOverflowTerminalWidth(t *testing.T) {
+	model := NewModel(
+		t.Context(),
+		nil,
+		[]logrecord.LogRecord{testLogRecord()},
+		ModelOptions{
+			AttributeNames: []string{
+				"@this.is.an.extremely.long.attribute.name.that.must.be.truncated",
+			},
+		},
+	)
+	model.width = 40
+	model.height = 12
+	updated, _ := model.handleBrowseKey(keyMsg("c"))
+	model = updated.(Model)
+
+	for lineNumber, line := range strings.Split(model.View(), "\n") {
+		if width := lipgloss.Width(line); width > model.width {
+			t.Fatalf("line %d width = %d, want <= %d: %q", lineNumber+1, width, model.width, line)
+		}
+	}
+}
+
 func TestFormatDetailUsesReadableJSON(t *testing.T) {
 	lines := formatDetail(testLogRecord(), 40)
 	detail := strings.Join(lines, "\n")

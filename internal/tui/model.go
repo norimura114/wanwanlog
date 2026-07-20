@@ -14,9 +14,15 @@ const (
 	FilterMode
 	DetailMode
 	HelpMode
+	ColumnsMode
 )
 
 type SearchFunc func(ctx context.Context, query string) ([]logrecord.LogRecord, error)
+
+type ModelOptions struct {
+	AttributeNames  []string
+	SelectedColumns []string
+}
 
 type Model struct {
 	ctx context.Context
@@ -30,6 +36,11 @@ type Model struct {
 	selectedIndex int
 	detailOffset  int
 
+	columns      []Column
+	columnDraft  []Column
+	columnCursor int
+	columnOffset int
+
 	width  int
 	height int
 
@@ -39,11 +50,16 @@ type Model struct {
 	search SearchFunc
 }
 
-func NewModel(ctx context.Context, search SearchFunc, initialRecords []logrecord.LogRecord) Model {
+func NewModel(ctx context.Context, search SearchFunc, initialRecords []logrecord.LogRecord, options ...ModelOptions) Model {
 	input := textinput.New()
 	input.Placeholder = "service:api status:error @http.status >= 400"
 	input.Prompt = "> "
 	input.CharLimit = 512
+
+	var option ModelOptions
+	if len(options) > 0 {
+		option = options[0]
+	}
 
 	return Model{
 		ctx:           ctx,
@@ -51,6 +67,7 @@ func NewModel(ctx context.Context, search SearchFunc, initialRecords []logrecord
 		filterInput:   input,
 		records:       initialRecords,
 		selectedIndex: 0,
+		columns:       NewColumns(option.AttributeNames, option.SelectedColumns),
 		search:        search,
 	}
 }
