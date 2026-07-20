@@ -3,6 +3,9 @@ package tui
 import "github.com/charmbracelet/lipgloss"
 
 var (
+	inactivePaneBorderColor = lipgloss.Color("240")
+	activePaneBorderColor   = lipgloss.Color("39")
+
 	headerStyle = lipgloss.NewStyle().
 			Bold(true).
 			Reverse(true)
@@ -12,12 +15,12 @@ var (
 
 	listPaneStyle = lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder()).
-			BorderForeground(lipgloss.Color("240")).
+			BorderForeground(inactivePaneBorderColor).
 			Padding(0, 1)
 
 	detailPaneStyle = lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder()).
-			BorderForeground(lipgloss.Color("240")).
+			BorderForeground(inactivePaneBorderColor).
 			Padding(0, 1)
 
 	selectedLineStyle = lipgloss.NewStyle().

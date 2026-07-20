@@ -20,6 +20,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
+		m.clampDetailOffset()
 		return m, nil
 	case tea.KeyMsg:
 		return m.handleKey(msg)
@@ -95,6 +96,7 @@ func (m Model) handleBrowseKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "d", "enter":
 		m.mode = DetailMode
+		m.clampDetailOffset()
 		return m, nil
 
 	case "?":
@@ -141,7 +143,9 @@ func (m Model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case "j", "down":
-		m.detailOffset++
+		if m.detailOffset < m.maxDetailOffset() {
+			m.detailOffset++
+		}
 		return m, nil
 
 	case "k", "up":
@@ -152,6 +156,27 @@ func (m Model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	return m, nil
+}
+
+func (m *Model) clampDetailOffset() {
+	m.detailOffset = min(m.detailOffset, m.maxDetailOffset())
+}
+
+func (m Model) maxDetailOffset() int {
+	record := m.selectedRecord()
+	if record == nil {
+		return 0
+	}
+
+	rightWidth := m.width - m.width/2
+	contentWidth := paneContentWidth(detailPaneStyle, rightWidth)
+	bodyHeight := m.height - 6
+	if bodyHeight < 5 {
+		bodyHeight = 5
+	}
+	contentHeight := paneContentHeight(detailPaneStyle, bodyHeight)
+
+	return max(0, len(formatDetail(*record, contentWidth))-contentHeight)
 }
 
 func (m Model) handleHelpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {

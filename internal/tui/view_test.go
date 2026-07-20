@@ -22,6 +22,47 @@ func TestViewDoesNotOverflowTerminalWidth(t *testing.T) {
 	}
 }
 
+func TestPaneStylesHighlightThePaneControlledByCurrentMode(t *testing.T) {
+	tests := []struct {
+		name       string
+		mode       Mode
+		wantList   lipgloss.TerminalColor
+		wantDetail lipgloss.TerminalColor
+	}{
+		{
+			name:       "browse highlights list",
+			mode:       BrowseMode,
+			wantList:   activePaneBorderColor,
+			wantDetail: inactivePaneBorderColor,
+		},
+		{
+			name:       "detail highlights detail",
+			mode:       DetailMode,
+			wantList:   inactivePaneBorderColor,
+			wantDetail: activePaneBorderColor,
+		},
+		{
+			name:       "filter leaves both panes inactive",
+			mode:       FilterMode,
+			wantList:   inactivePaneBorderColor,
+			wantDetail: inactivePaneBorderColor,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			listStyle, detailStyle := paneStyles(tt.mode)
+
+			if got := listStyle.GetBorderTopForeground(); got != tt.wantList {
+				t.Errorf("list border color = %v, want %v", got, tt.wantList)
+			}
+			if got := detailStyle.GetBorderTopForeground(); got != tt.wantDetail {
+				t.Errorf("detail border color = %v, want %v", got, tt.wantDetail)
+			}
+		})
+	}
+}
+
 func TestFormatDetailUsesReadableJSON(t *testing.T) {
 	lines := formatDetail(testLogRecord(), 40)
 	detail := strings.Join(lines, "\n")

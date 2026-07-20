@@ -78,23 +78,38 @@ func (m Model) renderFilter() string {
 func (m Model) renderBody(height int) string {
 	leftWidth := m.width / 2
 	rightWidth := m.width - leftWidth
-	leftContentWidth := paneContentWidth(listPaneStyle, leftWidth)
-	rightContentWidth := paneContentWidth(detailPaneStyle, rightWidth)
-	contentHeight := paneContentHeight(listPaneStyle, height)
+	listStyle, detailStyle := paneStyles(m.mode)
+	leftContentWidth := paneContentWidth(listStyle, leftWidth)
+	rightContentWidth := paneContentWidth(detailStyle, rightWidth)
+	contentHeight := paneContentHeight(listStyle, height)
 
 	list := m.renderList(leftContentWidth, contentHeight)
 	detail := m.renderDetail(rightContentWidth, contentHeight)
 
-	leftPane := listPaneStyle.
-		Width(paneRenderWidth(listPaneStyle, leftWidth)).
-		Height(paneRenderHeight(listPaneStyle, height)).
+	leftPane := listStyle.
+		Width(paneRenderWidth(listStyle, leftWidth)).
+		Height(paneRenderHeight(listStyle, height)).
 		Render(list)
-	rightPane := detailPaneStyle.
-		Width(paneRenderWidth(detailPaneStyle, rightWidth)).
-		Height(paneRenderHeight(detailPaneStyle, height)).
+	rightPane := detailStyle.
+		Width(paneRenderWidth(detailStyle, rightWidth)).
+		Height(paneRenderHeight(detailStyle, height)).
 		Render(detail)
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftPane, rightPane)
+}
+
+func paneStyles(mode Mode) (lipgloss.Style, lipgloss.Style) {
+	listStyle := listPaneStyle
+	detailStyle := detailPaneStyle
+
+	switch mode {
+	case BrowseMode:
+		listStyle = listStyle.BorderForeground(activePaneBorderColor)
+	case DetailMode:
+		detailStyle = detailStyle.BorderForeground(activePaneBorderColor)
+	}
+
+	return listStyle, detailStyle
 }
 
 func (m Model) renderList(width int, height int) string {
@@ -137,17 +152,14 @@ func (m Model) renderDetail(width int, height int) string {
 	}
 
 	lines := formatDetail(*record, width)
+	offset := min(m.detailOffset, max(0, len(lines)-height))
 
-	if m.detailOffset > len(lines)-1 {
-		m.detailOffset = max(0, len(lines)-1)
-	}
-
-	end := m.detailOffset + height
+	end := offset + height
 	if end > len(lines) {
 		end = len(lines)
 	}
 
-	return strings.Join(lines[m.detailOffset:end], "\n")
+	return strings.Join(lines[offset:end], "\n")
 }
 
 func (m Model) renderFooter() string {
@@ -324,6 +336,13 @@ func wrapLines(lines []string, width int) []string {
 
 func max(a int, b int) int {
 	if a > b {
+		return a
+	}
+	return b
+}
+
+func min(a int, b int) int {
+	if a < b {
 		return a
 	}
 	return b
