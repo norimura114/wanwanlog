@@ -5,6 +5,7 @@ type Config struct {
 	Query         string
 	Columns       []string
 	TUI           bool
+	Table         bool
 	ShowHelp      bool
 	ShowVersion   bool
 	JsonFormatter bool

@@ -23,6 +23,9 @@ func TestParserArgsWithFile(t *testing.T) {
 	if config.Query != "" {
 		t.Fatalf("expected query to be empty, got %s", config.Query)
 	}
+	if !config.TUI {
+		t.Fatal("expected TUI to be true by default")
+	}
 }
 
 func TestParseArgsWithFileAndQuery(t *testing.T) {
@@ -63,6 +66,51 @@ func TestParseArgsWithTUI(t *testing.T) {
 	}
 }
 
+func TestParseArgsWithTableDisablesTUI(t *testing.T) {
+	var output bytes.Buffer
+
+	config, err := ParseArgs([]string{
+		"--file", "./logs/sample.jsonl",
+		"--table",
+	}, &output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.TUI || !config.Table {
+		t.Fatalf("config = %+v, want table mode", config)
+	}
+}
+
+func TestParseArgsWithJSONDisablesTUI(t *testing.T) {
+	var output bytes.Buffer
+
+	config, err := ParseArgs([]string{
+		"--file", "./logs/sample.jsonl",
+		"--json",
+	}, &output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.TUI || !config.JsonFormatter {
+		t.Fatalf("config = %+v, want JSON mode", config)
+	}
+}
+
+func TestParseArgsRejectsConflictingOutputModes(t *testing.T) {
+	tests := [][]string{
+		{"--file", "logs.jsonl", "--table", "--json"},
+		{"--file", "logs.jsonl", "--tui", "--table"},
+		{"--file", "logs.jsonl", "--tui", "--json"},
+	}
+
+	for _, args := range tests {
+		var output bytes.Buffer
+		if _, err := ParseArgs(args, &output); err == nil {
+			t.Fatalf("expected error for %v", args)
+		}
+	}
+}
+
 func TestParseArgsWithTUIColumns(t *testing.T) {
 	var output bytes.Buffer
 
@@ -91,6 +139,7 @@ func TestParseArgsAcceptsColumnsWithoutTUI(t *testing.T) {
 
 	config, err := ParseArgs([]string{
 		"--file", "./logs/sample.jsonl",
+		"--table",
 		"--columns", "timestamp,@http.status,message",
 	}, &output)
 	if err != nil {
