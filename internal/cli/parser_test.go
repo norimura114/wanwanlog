@@ -86,15 +86,22 @@ func TestParseArgsWithTUIColumns(t *testing.T) {
 	}
 }
 
-func TestParseArgsRejectsColumnsWithoutTUI(t *testing.T) {
+func TestParseArgsAcceptsColumnsWithoutTUI(t *testing.T) {
 	var output bytes.Buffer
 
-	_, err := ParseArgs([]string{
+	config, err := ParseArgs([]string{
 		"--file", "./logs/sample.jsonl",
-		"--columns", "timestamp,message",
+		"--columns", "timestamp,@http.status,message",
 	}, &output)
-	if err == nil || err.Error() != "--columns requires --tui" {
-		t.Fatalf("error = %v, want --columns requires --tui", err)
+	if err != nil {
+		t.Fatalf("expected no error, got %v", err)
+	}
+
+	want := []string{"timestamp", "@http.status", "message"}
+	for i := range want {
+		if config.Columns[i] != want[i] {
+			t.Fatalf("columns = %v, want %v", config.Columns, want)
+		}
 	}
 }
 

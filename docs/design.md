@@ -45,7 +45,7 @@ Current user-facing flags:
 - `--file`: JSON Lines input file path.
 - `--query`: filter expression.
 - `--tui`: start the Bubble Tea TUI.
-- `--columns`: comma-separated initial browse columns; valid only with `--tui`.
+- `--columns`: comma-separated table columns or initial TUI browse columns.
 - `--json`: output as JSON instead of table.
 - `--pretty`: pretty-print JSON output.
 - `--version`: print version.
@@ -199,7 +199,10 @@ Attribute keys support dotted JSON paths such as `@user.id`. Attribute literals 
 
 The output package formats search results.
 
-`TableFormatter` prints a compact table with time, level, service, message, and flattened attributes. Long message and attribute strings are truncated.
+`TableFormatter` prints a compact table with time, level, service, message, and
+flattened attributes. When `--columns` is provided, it instead prints the
+selected built-in fields and attribute paths as independent columns. Long
+message and attribute strings are truncated.
 
 `JSONFormatter` writes the `SearchOutput` struct as JSON and supports indentation through the `Pretty` flag.
 
