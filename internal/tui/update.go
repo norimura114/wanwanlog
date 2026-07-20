@@ -231,6 +231,11 @@ func (m Model) handleDetailKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.detailOffset--
 		}
 		return m, nil
+
+	case "r":
+		m.detailRaw = !m.detailRaw
+		m.clampDetailOffset()
+		return m, nil
 	}
 
 	return m, nil
@@ -254,7 +259,7 @@ func (m Model) maxDetailOffset() int {
 	}
 	contentHeight := paneContentHeight(detailPaneStyle, bodyHeight)
 
-	return max(0, len(formatDetail(*record, contentWidth))-contentHeight)
+	return max(0, len(formatDetail(*record, contentWidth, m.detailRaw))-contentHeight)
 }
 
 func (m Model) handleHelpKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {

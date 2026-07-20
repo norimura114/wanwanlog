@@ -41,7 +41,7 @@ func TestDetailScrollStopsWhenLastLineReachesViewportBottom(t *testing.T) {
 	contentWidth := paneContentWidth(detailPaneStyle, rightWidth)
 	bodyHeight := max(5, model.height-6)
 	contentHeight := paneContentHeight(detailPaneStyle, bodyHeight)
-	lineCount := len(formatDetail(testLogRecord(), contentWidth))
+	lineCount := len(formatDetail(testLogRecord(), contentWidth, false))
 	if maxOffset != max(0, lineCount-contentHeight) {
 		t.Fatalf(
 			"maximum offset = %d, want line count %d - viewport height %d",
@@ -49,6 +49,25 @@ func TestDetailScrollStopsWhenLastLineReachesViewportBottom(t *testing.T) {
 			lineCount,
 			contentHeight,
 		)
+	}
+}
+
+func TestDetailRTogglesAttributesAndRaw(t *testing.T) {
+	model := NewModel(t.Context(), nil, []logrecord.LogRecord{testLogRecord()})
+	model.width = 80
+	model.height = 24
+	model.mode = DetailMode
+
+	updated, _ := model.handleDetailKey(keyMsg("r"))
+	raw := updated.(Model)
+	if !raw.detailRaw {
+		t.Fatal("r should switch detail to raw view")
+	}
+
+	updated, _ = raw.handleDetailKey(keyMsg("r"))
+	attributes := updated.(Model)
+	if attributes.detailRaw {
+		t.Fatal("second r should switch detail back to attributes view")
 	}
 }
 

@@ -108,7 +108,7 @@ func TestColumnSettingsViewDoesNotOverflowTerminalWidth(t *testing.T) {
 }
 
 func TestFormatDetailUsesReadableJSON(t *testing.T) {
-	lines := formatDetail(testLogRecord(), 40)
+	lines := formatDetail(testLogRecord(), 40, false)
 	detail := strings.Join(lines, "\n")
 
 	if strings.Contains(detail, "map[") {
@@ -117,14 +117,25 @@ func TestFormatDetailUsesReadableJSON(t *testing.T) {
 	if !strings.Contains(detail, `"request_id": "req_000004"`) {
 		t.Fatalf("detail should pretty-print attributes JSON: %s", detail)
 	}
-	if !strings.Contains(detail, `"timestamp": "2026-05-10T12:00:03Z"`) {
-		t.Fatalf("detail should pretty-print raw JSON: %s", detail)
+	if strings.Contains(detail, "\nraw:") {
+		t.Fatalf("detail should not show raw JSON in attributes view: %s", detail)
 	}
 
 	for lineNumber, line := range lines {
 		if width := lipgloss.Width(line); width > 40 {
 			t.Fatalf("detail line %d width = %d, want <= 40: %q", lineNumber+1, width, line)
 		}
+	}
+}
+
+func TestFormatDetailRawViewHidesAttributes(t *testing.T) {
+	detail := strings.Join(formatDetail(testLogRecord(), 80, true), "\n")
+
+	if !strings.Contains(detail, `"timestamp": "2026-05-10T12:00:03Z"`) {
+		t.Fatalf("detail should pretty-print raw JSON: %s", detail)
+	}
+	if strings.Contains(detail, "\nattributes:") {
+		t.Fatalf("detail should not show attributes JSON in raw view: %s", detail)
 	}
 }
 
